@@ -46,6 +46,27 @@ cp -r memory-curator <your-project>/.claude/skills/memory-curator
 
 它会:定位记忆库 → 一屏盘点全部条目 → 六维体检 → 给出每条的 留/删/改/并 清单(删除项先过目)→ 执行 → 校验文件数与索引一致、无死链无孤儿。
 
+## Hooks 模式(自动提醒,可选)
+
+除了手动触发,还能注册 hooks 在合适的时机**自动提醒**该清理记忆了。**hook 只做"探测 + 提醒"——真正的删改仍走 skill 的用户过目流程,绝不自动删。** 提醒为非阻塞 `systemMessage`,不拦截任何操作、不改权限。
+
+```bash
+./install.sh --with-hooks            # 全局 skill + 注册进 ~/.claude/settings.json
+./install.sh --project --with-hooks  # 项目级
+```
+
+三个触发点:
+
+| 触发点 | hook 事件 | 说明 |
+|---|---|---|
+| **end-work** | `Stop` | Claude 每轮工作结束时探测;带 24h 冷却节流避免打扰 |
+| **git push 前** | `PreToolUse`(Bash) | 命令是 `git push` 时探测;push 是主动行为,不做冷却 |
+| **未提交 .md 改动多** | 并入上面两者 | 记忆库 repo 内未提交的 markdown 改动数超阈值(脚本等非 md 忽略) |
+
+探测器 `detect-memory-health.sh` 算这些**确定性信号**,任一达阈值即提醒:文件数≠索引数、孤儿/死链、时效线索词命中、条数膨胀、距上次策展天数/提交数、未提交 `.md` 改动数。阈值全部可用环境变量覆盖(`CURATOR_MAX_NOTES` / `CURATOR_MAX_STALE` / `CURATOR_MAX_DAYS` / `CURATOR_MAX_COMMITS` / `CURATOR_MAX_MD_DIRTY` / `CURATOR_COOLDOWN`)。
+
+> 依赖 `jq`。"距上次策展"基准由 skill 策展完成后写入 `<memory_dir>/.curator-state`。
+
 ## 结构
 
 ```
@@ -53,7 +74,12 @@ memory-curator/
 ├── SKILL.md                      # 主流程(渐进式披露,frontmatter 常驻上下文)
 ├── references/
 │   └── judgment-matrix.md        # 详细判据矩阵 + 可复用脚本(按需加载)
-├── install.sh                    # 一键安装(软链到 ~/.claude/skills 或项目)
+├── hooks/                        # 自动提醒(可选,--with-hooks)
+│   ├── curator-lib.sh            # 共享库:定位记忆库 + 状态文件读写
+│   ├── detect-memory-health.sh   # 探测器:确定性健康信号
+│   ├── on-stop.sh                # 触发器:end-work(Stop)
+│   └── on-pre-push.sh            # 触发器:git push 前(PreToolUse)
+├── install.sh                    # 一键安装(软链 skill,可选注册 hooks)
 ├── README.md
 └── LICENSE
 ```
