@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# 记忆库健康探测器（确定性，便宜，无 LLM）。复用 judgment-matrix 的盘点/一致性思路。
+# 记忆库健康探测器（确定性，便宜，无 LLM）。Codex 项目可手动或由外部自动化调用。
+# 复用 judgment-matrix 的盘点/一致性思路，默认优先定位 <project>/.codex/memory。
 # 用法： detect-memory-health.sh [cwd]
 #   读取记忆库信号 → 若累计达阈值则 stdout 打印一行原因摘要并 exit 10；否则 exit 0。
 # 阈值可用环境变量覆盖（见下方默认值）。
@@ -31,7 +32,7 @@ reasons=()
 
 # ① 结构性问题（drift / 孤儿 / 死链）—— 有 MEMORY.md 才算
 if [[ -f MEMORY.md ]]; then
-  index_count=$(grep -c '^- \[' MEMORY.md 2>/dev/null || echo 0)
+  index_count=$(grep -c '^- \[' MEMORY.md 2>/dev/null || true)
   [[ "$notes" -ne "$index_count" ]] && reasons+=("文件数($notes)≠索引数($index_count)")
   deadlinks=0
   for f in $(grep -oE '\(([A-Za-z0-9_-]+\.md)\)' MEMORY.md 2>/dev/null | tr -d '()'); do
@@ -44,7 +45,7 @@ if [[ -f MEMORY.md ]]; then
 fi
 
 # ② 时效线索词命中文件数
-stale=$(grep -lE '已修复|已解决|待修|待办|TODO|workaround|临时|窗口已' *.md 2>/dev/null | grep -vc '^MEMORY.md$' || echo 0)
+stale=$(grep -lE '已修复|已解决|待修|待办|TODO|workaround|临时|窗口已' *.md 2>/dev/null | grep -vc '^MEMORY.md$' || true)
 [[ "$stale" -ge "$MAX_STALE" ]] && reasons+=("时效线索 $stale 条")
 
 # ③ 条数膨胀
@@ -66,12 +67,12 @@ fi
 
 # ⑥ 未提交的 .md 改动（聚焦记忆/markdown 文件，脚本等非 md 忽略）
 if git -C "$MEM_DIR" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
-  md_dirty=$(git -C "$MEM_DIR" status --porcelain -- '*.md' 2>/dev/null | grep -c . || echo 0)
+  md_dirty=$(git -C "$MEM_DIR" status --porcelain -- '*.md' 2>/dev/null | grep -c . || true)
   [[ "$md_dirty" -ge "$MAX_MD_DIRTY" ]] && reasons+=("未提交 .md 改动 $md_dirty 个")
 fi
 
 if [[ "${#reasons[@]}" -gt 0 ]]; then
-  ( IFS='；'; printf '%s\n' "${reasons[*]}" )
+  ( IFS='; '; printf '%s\n' "${reasons[*]}" )
   exit 10
 fi
 exit 0

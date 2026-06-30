@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# 触发器①：end-work 节点（Stop 事件）。Claude 每轮结束时跑。
-# 档 A（仅提醒）：体检偏红 → systemMessage 提醒用户运行 /memory-curator，非阻塞、不改权限。
+# Claude Code 兼容触发器①：end-work 节点（Stop 事件）。Codex 不会直接调用此文件。
+# 仅提醒：体检偏红 → systemMessage 提醒用户运行 memory-curator，非阻塞、不改权限。
 # 防打扰：带冷却节流（默认 24h），无依赖 stop_hook_active，靠自建 state。
 set -uo pipefail
 SELF_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -24,6 +24,6 @@ if [[ -n "$last_notify" ]]; then
 fi
 state_set "$MEM_DIR" last_notify_epoch "$(now_epoch)"
 
-msg="🧹 记忆库体检偏红：${reasons}。建议运行 /memory-curator 清理（删改会先列清单给你过目）。"
+msg="记忆库体检偏红：${reasons}。建议运行 memory-curator 清理（删改会先列清单给你过目）。"
 jq -n --arg m "$msg" '{systemMessage:$m}'
 exit 0
