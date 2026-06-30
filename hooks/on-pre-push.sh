@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# 触发器②③：git push 之前（PreToolUse + matcher Bash）。
+# Claude Code 兼容触发器②③：git push 之前（PreToolUse + matcher Bash）。
+# Codex 不会直接调用此文件；detector 脚本本身仍可在 Codex 项目中手动运行。
 # 只在命令是 git push 时介入；体检偏红 → systemMessage 提醒，非阻塞（不拦推送、不改权限）。
 # push 较少且是主动行为 → 不做冷却，每次不健康都提醒。
 set -uo pipefail
@@ -20,6 +21,6 @@ cwd="$(printf '%s' "$input" | jq -r '.cwd // empty')"
 reasons="$("$SELF_DIR/detect-memory-health.sh" "$cwd")"
 [[ $? -eq 10 && -n "$reasons" ]] || exit 0
 
-msg="🧹 push 前提醒：记忆库体检偏红（${reasons}）。建议先运行 /memory-curator 清理（删改会先列清单给你过目）。"
+msg="push 前提醒：记忆库体检偏红（${reasons}）。建议先运行 memory-curator 清理（删改会先列清单给你过目）。"
 jq -n --arg m "$msg" '{systemMessage:$m}'
 exit 0

@@ -1,11 +1,11 @@
 ---
 name: memory-curator
-description: Curate and prune a file-based agent memory library (Claude Code memory/ + MEMORY.md, or any folder of one-fact markdown notes). Use when asked to clean up / audit / tidy / review memory, when memory feels bloated or self-contradictory, or for periodic memory maintenance. Detects stale, duplicate, contradictory, orphaned, and fragmented notes; proposes keep/delete/update/merge; keeps file-count == index-count with no dead links or orphans. 记忆库盘点/清理/维护/瘦身。
+description: Curate and prune a file-based agent memory library for Codex projects (.codex/memory/ + MEMORY.md), legacy Claude Code memory, or any folder of one-fact markdown notes. Use whenever the user asks to clean up, audit, tidy, slim, review, or maintain memory; when memory feels bloated, stale, contradictory, or fragmented; after major project changes; or when file/index drift is suspected. Detects stale, duplicate, contradictory, orphaned, dead-linked, and fragmented notes; proposes keep/delete/update/merge actions; preserves file-count == index-count with no dead links or orphans. 记忆库盘点/清理/维护/瘦身。
 ---
 
 # Memory Curator —— 文件式记忆库策展
 
-把"记忆维护"做成一套可复用的盘点→体检→判删→执行→校验流程。适用于 Claude Code 的文件记忆(`~/.claude/projects/<proj>/memory/` + `MEMORY.md`),也适用于任意"一条笔记一个事实 + 一个索引文件"的 markdown 记忆库。
+把"记忆维护"做成一套可复用的盘点→体检→判删→执行→校验流程。优先适用于 Codex 项目本地文件记忆(`.codex/memory/` + `MEMORY.md`),也兼容旧 Claude Code 记忆与任意"一条笔记一个事实 + 一个索引文件"的 markdown 记忆库。
 
 > **核心目标**:精简、无矛盾、无死信息。过期/矛盾的记忆比没有记忆更危险——它会**误导未来判断**(典型:某条还写"要关沙箱 workaround",实际版本早已修复)。
 > **铁律**:删除不可逆。**删前必读正文确认无独特经验、先出清单给用户过目**。终态必须 `文件数 == 索引数`、无死链、无孤儿。
@@ -25,10 +25,14 @@ description: Curate and prune a file-based agent memory library (Claude Code mem
 不要假设路径。先定位 memory 目录与索引文件:
 
 ```bash
-# Claude Code 项目记忆通常在 ~/.claude/projects/<编码后的项目路径>/memory/
-find ~/.claude -maxdepth 4 -name "MEMORY.md" 2>/dev/null
-# 或当前项目的 .claude 下
-find . -path '*/memory/MEMORY.md' 2>/dev/null
+# Codex 项目记忆优先在当前项目内
+find . -path '*/.codex/memory/MEMORY.md' 2>/dev/null
+
+# 显式覆盖路径（若用户指定）
+printf '%s\n' "${CURATOR_MEMORY_DIR:-}"
+
+# 兼容旧 Claude Code 项目记忆
+find ~/.claude -maxdepth 5 -path '*/memory/MEMORY.md' 2>/dev/null
 ```
 
 确认两样东西:① 记忆文件目录(一堆 `*.md`)② 索引文件(`MEMORY.md`,每条记忆一行 `- [标题](file.md) — 摘要`)。若没有索引文件,跳过索引相关步骤,只做文件级体检。
@@ -86,7 +90,7 @@ done
 1. **先出清单**:把每条的 拟定动作 + 理由 列给用户过目(尤其删除项)。删除不可逆,这一步是刹车。
 2. **删文件** → **同步删 MEMORY.md 对应索引行**(成对操作,别只删一半)。
 3. **更新/合并** → 改正文 + 同步索引摘要。
-4. 记忆在 `~/.claude/...` 不入版本库 → 通常**无需 commit**(若记忆目录在项目 repo 内则按项目惯例)。
+4. 记忆在项目 `.codex/memory/` 内通常入版本库或至少在工作区内 → 按项目惯例处理；旧 `~/.claude/...` 记忆通常不入版本库 → 通常**无需 commit**。
 
 ---
 

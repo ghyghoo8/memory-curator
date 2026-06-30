@@ -1,6 +1,6 @@
 # 判据矩阵与脚本细则
 
-SKILL.md 的展开层。需要精细判断"留/删/改/并",或要可复用脚本时读这里。
+SKILL.md 的展开层。需要精细判断"留/删/改/并",或要可复用脚本时读这里。默认目标是 Codex 项目 `.codex/memory/`,但判据适用于任何一文件一事实的 markdown 记忆库。
 
 ---
 
@@ -91,6 +91,16 @@ cd <memory_dir>
 echo "文件 $(ls *.md|grep -v '^MEMORY'|wc -l) / 索引 $(grep -c '^- \[' MEMORY.md)"
 for f in $(grep -oE '\(([A-Za-z0-9_-]+\.md)\)' MEMORY.md|tr -d '()'); do [ -f "$f" ]||echo "死链 $f"; done
 for f in $(ls *.md|grep -v '^MEMORY'); do grep -q "($f)" MEMORY.md||echo "孤儿 $f"; done
+```
+
+### Codex 项目定位
+
+```bash
+# 从项目根目录查找 Codex 记忆库
+find . -path '*/.codex/memory/MEMORY.md' 2>/dev/null
+
+# 或显式指定
+CURATOR_MEMORY_DIR=<memory_dir> hooks/detect-memory-health.sh "$PWD"
 ```
 
 ---

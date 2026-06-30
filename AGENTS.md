@@ -1,19 +1,19 @@
-# CLAUDE.md
+# AGENTS.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+This file provides guidance to Codex (Codex.ai/code) when working with code in this repository.
 
 ## What this repo is
 
-`memory-curator` is a **Codex-first skill** (not an application) with legacy Claude Code
-compatibility. It packages a reusable workflow for curating and pruning a file-based agent
-memory library — Codex project `.codex/memory/` + `MEMORY.md`, legacy Claude Code memory,
-or any "one fact per markdown note + one index file" store. There is no build step; the deliverable is the prose and scripts
+`memory-curator` is a **Codex skill** (not an application). It packages a reusable
+workflow for curating and pruning a file-based agent memory library — Codex project
+`.codex/memory/` + `MEMORY.md`, legacy Claude Code memory, or any "one fact per
+markdown note + one index file" store. There is no build step; the deliverable is the prose and scripts
 inside the markdown files.
 
 ## Layout & how the pieces relate
 
 - `SKILL.md` — the skill entrypoint. Its YAML `frontmatter` (`name`, `description`) is what
-  Claude Code keeps resident in context and uses to decide when to auto-trigger the skill.
+  Codex keeps resident in context and uses to decide when to auto-trigger the skill.
   The body is the always-loaded main workflow: a 6-step pipeline **locate → inventory →
   6-dimension health check → keep/delete/update/merge matrix → safe execution → consistency
   gate**.
