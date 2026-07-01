@@ -20,6 +20,9 @@ inside the markdown files.
 - `references/judgment-matrix.md` — the progressive-disclosure layer, loaded on demand. Holds
   the detailed delete/keep/update/merge criteria, contradiction-detection method, and the
   reusable bash scripts. `SKILL.md` deliberately stays lean and points here for fine judgment.
+- `scripts/` — deterministic helpers for token-frugal memory infrastructure:
+  `build-index.sh` creates `.curator-index.json`, `check-index.sh` enforces file/MEMORY.md/JSON
+  consistency, and `route-memory.sh` selects the top relevant notes before reading full bodies.
 - `hooks/` — deterministic health detector plus legacy Claude Code hook adapters. Codex uses
   `detect-memory-health.sh` directly when an external reminder is desired. `on-stop.sh` and
   `on-pre-push.sh` remain compatibility adapters only; they emit a non-blocking `systemMessage`
@@ -48,8 +51,11 @@ memory", or explicitly by mentioning `memory-curator`. Restart or open a new ses
   unique experience the rules files/code don't already capture), and present a list to the user
   before executing.
 - **File and index are deleted/updated as a pair** — never leave `MEMORY.md` out of sync.
-- **Terminal consistency gate must pass**: `file count == index count`, no dead links, no
-  orphans. The check scripts live in both `SKILL.md` Step 6 and `references/judgment-matrix.md` §4.
+- **Terminal consistency gate must pass**: note file count == `MEMORY.md` entry count ==
+  `.curator-index.json` entry count, no dead links, no orphans.
+- **Token budget comes first**: use `.curator-index.json` and `route-memory.sh` to choose a small
+  top-N set before reading full note bodies. Do not load the whole memory library for ordinary
+  tasks.
 - After a successful curation, SKILL.md Step 6 stamps `<memory_dir>/.curator-state`
   (`last_curation_epoch` / `last_curation_sha`) — this is the baseline the hooks' "days/commits
   since last curation" signals read. The hooks write `last_notify_epoch` to that same file for

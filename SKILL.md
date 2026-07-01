@@ -1,22 +1,37 @@
 ---
 name: memory-curator
-description: Curate and prune a file-based agent memory library for Codex projects (.codex/memory/ + MEMORY.md), legacy Claude Code memory, or any folder of one-fact markdown notes. Use whenever the user asks to clean up, audit, tidy, slim, review, or maintain memory; when memory feels bloated, stale, contradictory, or fragmented; after major project changes; or when file/index drift is suspected. Detects stale, duplicate, contradictory, orphaned, dead-linked, and fragmented notes; proposes keep/delete/update/merge actions; preserves file-count == index-count with no dead links or orphans. 记忆库盘点/清理/维护/瘦身。
+description: Token-frugal routing, indexing, and curation for file-based agent memory in Codex projects (.codex/memory/ + MEMORY.md), legacy Claude Code memory, or one-fact markdown note stores. Use whenever the user asks to clean up, audit, tidy, slim, review, maintain, index, route, or retrieve memory; when memory feels bloated, stale, contradictory, or fragmented; after major project changes; or when file/index drift is suspected. Defaults to reading the machine index first and only loading the few task-relevant notes needed for understanding; full curation detects stale, duplicate, contradictory, orphaned, dead-linked, and fragmented notes and preserves file-count == index-count with no dead links or orphans. 记忆库盘点/清理/维护/瘦身/路由。
 ---
 
 # Memory Curator —— 文件式记忆库策展
 
-把"记忆维护"做成一套可复用的盘点→体检→判删→执行→校验流程。优先适用于 Codex 项目本地文件记忆(`.codex/memory/` + `MEMORY.md`),也兼容旧 Claude Code 记忆与任意"一条笔记一个事实 + 一个索引文件"的 markdown 记忆库。
+把"记忆维护"做成一套可复用的低 token 路由 + 重型策展流程。优先适用于 Codex 项目本地文件记忆(`.codex/memory/` + `MEMORY.md`),也兼容旧 Claude Code 记忆与任意"一条笔记一个事实 + 一个索引文件"的 markdown 记忆库。
 
 > **核心目标**:精简、无矛盾、无死信息。过期/矛盾的记忆比没有记忆更危险——它会**误导未来判断**(典型:某条还写"要关沙箱 workaround",实际版本早已修复)。
 > **铁律**:删除不可逆。**删前必读正文确认无独特经验、先出清单给用户过目**。终态必须 `文件数 == 索引数`、无死链、无孤儿。
+> **上下文预算原则**:默认先读 `.curator-index.json` 这种机器索引,只把当前任务需要的 top 1-3 条记忆正文放进上下文。不要为了"可能有用"全量读取 memory；节省出来的上下文留给用户任务、代码和验证输出。
 
 ---
 
-## 何时触发
+## 两种模式
 
-- 用户说:清理/盘点/整理/审计/瘦身记忆、memory 维护、"记忆是不是过期了"。
-- 记忆条数明显变多、或怀疑有自相矛盾/陈旧。
-- 大改动(重构/版本升级/数据源迁移)后顺手维护——旧"新增 X 模块"快照常已被代码/文档覆盖。
+### route（轻量，默认）
+
+用户要开始一个普通任务,或问"有没有相关 memory / 该读哪些 memory"时,先路由而不是全量清理:
+
+```bash
+scripts/route-memory.sh --cwd "$PWD" --limit 3 "<当前任务关键词>"
+```
+
+只读输出中排名靠前且确实相关的记忆正文。若没有命中,继续任务,不要扩大读取范围。若命中 `status=stale/superseded` 或 `risk=high-if-wrong` 的记忆,先核验再采纳。
+
+### curate（重型，按需）
+
+用户说清理/盘点/整理/审计/瘦身记忆、memory 维护、"记忆是不是过期了",或 detector 报红时,进入完整策展流程:
+
+- 结构漂移:文件数不等于索引数、死链、孤儿。
+- 内容风险:条数明显变多、时效线索多、怀疑矛盾/陈旧。
+- 大改动后:重构、版本升级、数据源迁移后,旧"新增 X 模块"快照常已被代码/文档覆盖。
 
 ---
 
@@ -41,7 +56,16 @@ find ~/.claude -maxdepth 5 -path '*/memory/MEMORY.md' 2>/dev/null
 
 ## Step 2 · 盘点（一次看全，不逐个 Read）
 
-批量打印每条的 description + 字数 + 修改时间 + 时效线索,一屏看完再判断:
+优先生成/校验机器索引。索引是 cache,真相源仍是 note 文件 + `MEMORY.md`:
+
+```bash
+scripts/build-index.sh --memory-dir <memory_dir>
+scripts/check-index.sh --memory-dir <memory_dir>
+```
+
+`.curator-index.json` 用于低 token 路由:先看 `file/name/type/status/scope/entities/summary/risk`,再决定是否读正文。
+
+完整策展时,批量打印每条的 description + 字数 + 修改时间 + 时效线索,一屏看完再判断:
 
 ```bash
 cd <memory_dir>
@@ -105,7 +129,7 @@ for f in $(grep -oE '\(([A-Za-z0-9_-]+\.md)\)' MEMORY.md | tr -d '()'); do [ -f 
 for f in $(ls *.md|grep -v '^MEMORY'); do grep -q "($f)" MEMORY.md || echo "孤儿: $f"; done
 ```
 
-通过标准:**文件数 == 索引数、无死链输出、无孤儿输出**。
+通过标准:**文件数 == 索引数、无死链输出、无孤儿输出,且 `scripts/check-index.sh` 通过**。
 
 校验通过后,**盖一个时间戳**(供 hooks 的"距上次策展天数/提交数"信号判基准;无 hooks 时此步可省):
 
@@ -124,5 +148,7 @@ mv .curator-state.new .curator-state
 ## 写入新记忆时的规范(顺带校正)
 
 维护中若要新增/改写记忆,遵循一文件一事实 + frontmatter(`name`/`description`/`metadata.type`)+ MEMORY.md 一行一指针;feedback/project 类正文带 **Why** + **How to apply**;用 `[[name]]` 互链。详见 `references/judgment-matrix.md` 的"健康记忆形态"。
+
+写入前先跑 router 或查 `.curator-index.json`:若已有同主题记忆,更新旧文件而不是新增,避免碎片化和未来 token 膨胀。
 
 > 触发时机建议:大改动后顺手 / 感觉记忆变多或自相矛盾时主动跑,不必等用户每次提醒。
