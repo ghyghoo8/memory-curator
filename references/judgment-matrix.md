@@ -1,6 +1,6 @@
 # 判据矩阵与脚本细则
 
-SKILL.md 的展开层。需要精细判断"留/删/改/并",或要可复用脚本时读这里。默认目标是 Codex 项目 `.codex/memory/`,但判据适用于任何一文件一事实的 markdown 记忆库。
+SKILL.md 的展开层。需要精细判断"留/删/改/并",或要可复用脚本时读这里。默认目标是 Codex 项目 `.codex/memory/`,但判据适用于任何一文件一事实的 markdown 记忆库。设计原则是用机器索引减少 token 占用,只在需要理解细节时读取少量正文。
 
 ---
 
@@ -91,6 +91,7 @@ cd <memory_dir>
 echo "文件 $(ls *.md|grep -v '^MEMORY'|wc -l) / 索引 $(grep -c '^- \[' MEMORY.md)"
 for f in $(grep -oE '\(([A-Za-z0-9_-]+\.md)\)' MEMORY.md|tr -d '()'); do [ -f "$f" ]||echo "死链 $f"; done
 for f in $(ls *.md|grep -v '^MEMORY'); do grep -q "($f)" MEMORY.md||echo "孤儿 $f"; done
+scripts/check-index.sh --memory-dir "$PWD"
 ```
 
 ### Codex 项目定位
@@ -105,7 +106,39 @@ CURATOR_MEMORY_DIR=<memory_dir> hooks/detect-memory-health.sh "$PWD"
 
 ---
 
-## 5. 健康记忆形态(写入/改写时遵循)
+## 5. 机器索引与路由
+
+`.curator-index.json` 是可重建 cache,用于 router 低 token 召回。不要把它当唯一真相源；真相源仍是 note 文件 + `MEMORY.md`。
+
+```bash
+scripts/build-index.sh --memory-dir <memory_dir>
+scripts/check-index.sh --memory-dir <memory_dir>
+scripts/route-memory.sh --memory-dir <memory_dir> --limit 3 "sandbox approval shell"
+```
+
+索引字段:
+
+| 字段 | 用途 |
+|---|---|
+| `file/name/summary` | 人和 agent 快速识别 |
+| `type` | user / feedback / project / reference |
+| `status` | active / stale / superseded / archived |
+| `stability` | stable / time-sensitive / temporary |
+| `freshness` | timeless / time-sensitive / unknown |
+| `risk` | normal / high-if-wrong |
+| `scope/entities` | router 主匹配面,避免读全文 |
+| `supersedes/superseded_by` | 矛盾和替代关系 |
+
+路由策略:
+
+- 先查索引,默认 top 3。
+- 只读确实相关的正文；无命中就不读 memory。
+- `stale/superseded` 只作提醒,不直接采纳。
+- `high-if-wrong` 命中时优先精读并核验,因为错用代价高。
+
+---
+
+## 6. 健康记忆形态(写入/改写时遵循)
 
 ```markdown
 ---
@@ -113,6 +146,15 @@ name: <kebab-case-slug>
 description: <一行摘要，用于召回相关性判断>
 metadata:
   type: user | feedback | project | reference
+  status: active | stale | superseded | archived
+  stability: stable | time-sensitive | temporary
+  freshness: timeless | time-sensitive | unknown
+  risk: normal | high-if-wrong
+  scope: [<router-keyword>]
+  entities: [<domain-term>]
+  review_after: <YYYY-MM-DD or null>
+  supersedes: []
+  superseded_by: null
 ---
 
 <事实主体。feedback/project 类补：>
@@ -125,4 +167,4 @@ metadata:
 - **一文件一事实**;别把多个事实塞一条。
 - **MEMORY.md**:每条一行 `- [标题](file.md) — 钩子摘要`,不放正文。
 - **类型**:`user`(用户是谁)/`feedback`(希望我怎么工作)/`project`(进行中的工作/约束)/`reference`(外部资源/领域框架)。
-- 新增前先查是否已有覆盖 → 有则更新而非新建(防重复/碎片)。
+- 新增前先查 `.curator-index.json` 或跑 `scripts/route-memory.sh` → 有则更新而非新建(防重复/碎片/token 膨胀)。

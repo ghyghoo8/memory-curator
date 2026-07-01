@@ -1,0 +1,2 @@
+- [Sandbox policy](sandbox-policy.md) - Stable shell permission preference.
+- [Codex skill layout](codex-skill-layout.md) - Current structure for Codex skills.

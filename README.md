@@ -9,7 +9,7 @@
 
 **过期记忆比没有记忆更危险——它会误导未来判断。** 典型:一条记忆还写着"要关沙箱才能跑",而实际版本早已原生支持。
 
-`memory-curator` 把记忆维护做成一套可复用的流程:**定位 → 盘点 → 六维体检 → 判删矩阵 → 安全执行 → 一致性校验**。
+`memory-curator` 把记忆维护做成两条路径:**轻量 route → 只读相关记忆** 和 **重型 curate → 盘点/判删/执行/校验**。默认先节省上下文,把 token 留给当前任务。
 
 ## 能力概览
 
@@ -17,6 +17,7 @@
 - **四档判削**:删 / 更新 / 合并 / 留 —— 每条带判据,不一刀切
 - **安全第一**:删除不可逆 → 删前读正文确认无独特经验、先出清单给用户过目、删文件与删索引成对操作
 - **一致性门禁**:终态必须 `文件数 == 索引数`、无死链、无孤儿
+- **低 token 路由**:生成 `.curator-index.json`,先用机器索引选择 top 1-3 条相关记忆,不全量读正文
 - **Codex-first**:默认定位项目 `.codex/memory/`,同时兼容旧 Claude Code `~/.claude/projects/.../memory/` 与任意 markdown 记忆库
 
 ## 安装
@@ -45,7 +46,7 @@ cp -r memory-curator <your-project>/.codex/skills/memory-curator
 
 安装后,当你对 Codex 说**"清理一下记忆""盘点记忆库""记忆是不是过期了""tidy up memory"**等,skill 会触发。也可显式提到 `memory-curator`。
 
-它会:定位记忆库 → 一屏盘点全部条目 → 六维体检 → 给出每条的 留/删/改/并 清单(删除项先过目)→ 执行 → 校验文件数与索引一致、无死链无孤儿。
+普通任务优先走 route:先看机器索引,只读取当前任务需要的少量记忆正文。清理任务才走 curate:定位记忆库 → 一屏盘点全部条目 → 六维体检 → 给出每条的 留/删/改/并 清单(删除项先过目)→ 执行 → 校验文件数、`MEMORY.md`、JSON 索引一致。
 
 默认记忆库位置:
 
@@ -57,6 +58,18 @@ cp -r memory-curator <your-project>/.codex/skills/memory-curator
 
 也可以用 `CURATOR_MEMORY_DIR=/path/to/memory` 显式指定任意记忆目录。
 
+## 索引与路由
+
+`.curator-index.json` 是可重建的机器索引,用于减少 token 占用。它不替代 note 文件和 `MEMORY.md`,只负责快速召回:
+
+```bash
+./scripts/build-index.sh --memory-dir <memory_dir>
+./scripts/check-index.sh --memory-dir <memory_dir>
+./scripts/route-memory.sh --memory-dir <memory_dir> --limit 3 "shell sandbox approval"
+```
+
+router 默认只返回 top 3。无命中时不读 memory；命中 `stale/superseded` 时先核验；命中 `high-if-wrong` 时优先精读,因为错用代价高。
+
 ## 健康探测器
 
 `hooks/detect-memory-health.sh` 是一个确定性探测器,可在 Codex 项目里手动或由外部自动化调用:
@@ -65,7 +78,7 @@ cp -r memory-curator <your-project>/.codex/skills/memory-curator
 ./hooks/detect-memory-health.sh "$PWD"
 ```
 
-它只读健康信号,不删改文件。任一信号达阈值时输出原因并 `exit 10`:文件数≠索引数、孤儿/死链、时效线索词命中、条数膨胀、距上次策展天数/提交数、未提交 `.md` 改动数。阈值可用环境变量覆盖(`CURATOR_MAX_NOTES` / `CURATOR_MAX_STALE` / `CURATOR_MAX_DAYS` / `CURATOR_MAX_COMMITS` / `CURATOR_MAX_MD_DIRTY` / `CURATOR_COOLDOWN`)。
+它只读健康信号,不删改文件。任一信号达阈值时输出原因并 `exit 10`:文件数≠索引数、孤儿/死链、`.curator-index.json` 漂移、时效线索词命中、条数膨胀、距上次策展天数/提交数、未提交 `.md` 改动数。阈值可用环境变量覆盖(`CURATOR_MAX_NOTES` / `CURATOR_MAX_STALE` / `CURATOR_MAX_DAYS` / `CURATOR_MAX_COMMITS` / `CURATOR_MAX_MD_DIRTY` / `CURATOR_COOLDOWN`)。
 
 > "距上次策展"基准由 skill 策展完成后写入 `<memory_dir>/.curator-state`。
 
@@ -89,12 +102,18 @@ memory-curator/
 ├── SKILL.md                      # 主流程(渐进式披露,frontmatter 常驻上下文)
 ├── references/
 │   └── judgment-matrix.md        # 详细判据矩阵 + 可复用脚本(按需加载)
+├── scripts/
+│   ├── memory_index.py           # build/check/route 实现
+│   ├── build-index.sh            # 生成 .curator-index.json
+│   ├── check-index.sh            # 校验文件/MEMORY.md/JSON 三方一致
+│   └── route-memory.sh           # 低 token 记忆路由
 ├── hooks/
 │   ├── curator-lib.sh            # 共享库:定位记忆库 + 状态文件读写
 │   ├── detect-memory-health.sh   # 探测器:确定性健康信号
 │   ├── on-stop.sh                # Claude Code 兼容触发器:Stop
 │   └── on-pre-push.sh            # Claude Code 兼容触发器:PreToolUse/Bash git push
 ├── install.sh                    # 一键安装 Codex skill,可选 Claude hook 兼容
+├── tests/                        # fixture + 回归验证
 ├── README.md
 └── LICENSE
 ```

@@ -6,6 +6,7 @@
 # 阈值可用环境变量覆盖（见下方默认值）。
 set -uo pipefail
 SELF_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+ROOT_DIR="$(cd "$SELF_DIR/.." && pwd)"
 # shellcheck source=curator-lib.sh
 . "$SELF_DIR/curator-lib.sh"
 
@@ -42,6 +43,11 @@ if [[ -f MEMORY.md ]]; then
   orphans=0
   for f in "${notes_arr[@]}"; do grep -q "($f)" MEMORY.md || orphans=$((orphans+1)); done
   [[ "$orphans" -gt 0 ]] && reasons+=("孤儿 $orphans")
+fi
+
+# ①b 机器索引漂移（索引是 cache；存在时必须和文件/MEMORY.md 同步）
+if [[ -f .curator-index.json && -x "$ROOT_DIR/scripts/check-index.sh" ]]; then
+  "$ROOT_DIR/scripts/check-index.sh" --memory-dir "$MEM_DIR" >/dev/null 2>&1 || reasons+=("机器索引不一致")
 fi
 
 # ② 时效线索词命中文件数
