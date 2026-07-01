@@ -7,6 +7,8 @@ trap 'rm -rf "$TMP"' EXIT
 
 cp -R "$ROOT/tests/fixtures/good-memory" "$TMP/good-memory"
 cp -R "$ROOT/tests/fixtures/bad-memory" "$TMP/bad-memory"
+mkdir -p "$TMP/empty-memory"
+touch "$TMP/empty-memory/blank.md"
 
 "$ROOT/scripts/build-index.sh" --memory-dir "$TMP/good-memory" >/dev/null
 "$ROOT/scripts/check-index.sh" --memory-dir "$TMP/good-memory" >/dev/null
@@ -14,6 +16,9 @@ CURATOR_MEMORY_DIR="$TMP/good-memory" "$ROOT/hooks/detect-memory-health.sh" "$TM
 
 route_output="$("$ROOT/scripts/route-memory.sh" --memory-dir "$TMP/good-memory" "shell sandbox approval")"
 printf '%s\n' "$route_output" | grep -q "sandbox-policy.md"
+
+"$ROOT/scripts/build-index.sh" --memory-dir "$TMP/empty-memory" >/dev/null
+grep -q "Empty note: blank" "$TMP/empty-memory/.curator-index.json"
 
 "$ROOT/scripts/build-index.sh" --memory-dir "$TMP/bad-memory" >/dev/null
 if "$ROOT/scripts/check-index.sh" --memory-dir "$TMP/bad-memory" >/dev/null 2>&1; then

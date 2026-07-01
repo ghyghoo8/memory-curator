@@ -190,6 +190,18 @@ def read_index_links(memory_dir: Path) -> dict[str, str]:
     return links
 
 
+def summary_for_note(path: Path, description: str, index_links: dict[str, str], body: str) -> str:
+    if description:
+        return description
+    if index_links.get(path.name):
+        return index_links[path.name]
+    for line in body.splitlines():
+        line = line.strip()
+        if line:
+            return line
+    return f"Empty note: {slug_from_file(path)}"
+
+
 def build_index(memory_dir: Path) -> dict[str, Any]:
     index_links = read_index_links(memory_dir)
     notes: list[Note] = []
@@ -200,7 +212,7 @@ def build_index(memory_dir: Path) -> dict[str, Any]:
         frontmatter, body = parse_frontmatter(text)
         metadata = frontmatter.get("metadata") if isinstance(frontmatter.get("metadata"), dict) else {}
         description = str(frontmatter.get("description") or "").strip()
-        summary = description or index_links.get(path.name, "") or body.strip().splitlines()[0:1][0]
+        summary = summary_for_note(path, description, index_links, body)
         name = str(frontmatter.get("name") or slug_from_file(path))
         scope = as_list(metadata.get("scope") or frontmatter.get("scope"))
         entities = as_list(metadata.get("entities") or frontmatter.get("entities"))
