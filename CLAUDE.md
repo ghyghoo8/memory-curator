@@ -21,8 +21,10 @@ inside the markdown files.
   the detailed delete/keep/update/merge criteria, contradiction-detection method, and the
   reusable bash scripts. `SKILL.md` deliberately stays lean and points here for fine judgment.
 - `scripts/` — deterministic helpers for token-frugal memory infrastructure:
-  `build-index.sh` creates `.curator-index.json`, `check-index.sh` enforces file/MEMORY.md/JSON
-  consistency, and `route-memory.sh` selects the top relevant notes before reading full bodies.
+  `inventory-memory.sh` prints a compact live inventory, `build-index.sh` creates
+  `.curator-index.json`, `check-index.sh` strictly enforces note/MEMORY.md/JSON content
+  consistency, `route-memory.sh` selects the top relevant notes for Chinese or English queries,
+  and `mark-curated.sh` records the baseline only after the strict gate passes.
 - `hooks/` — deterministic health detector plus legacy Claude Code hook adapters. Codex uses
   `detect-memory-health.sh` directly when an external reminder is desired. `on-stop.sh` and
   `on-pre-push.sh` remain compatibility adapters only; they emit a non-blocking `systemMessage`
@@ -52,7 +54,7 @@ memory", or explicitly by mentioning `memory-curator`. Restart or open a new ses
   before executing.
 - **File and index are deleted/updated as a pair** — never leave `MEMORY.md` out of sync.
 - **Terminal consistency gate must pass**: note file count == `MEMORY.md` entry count ==
-  `.curator-index.json` entry count, no dead links, no orphans.
+  `.curator-index.json` entry count, source hashes match, no dead links, no orphans.
 - **Token budget comes first**: use `.curator-index.json` and `route-memory.sh` to choose a small
   top-N set before reading full note bodies. Do not load the whole memory library for ordinary
   tasks.

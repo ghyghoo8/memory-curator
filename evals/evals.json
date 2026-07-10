@@ -1,0 +1,52 @@
+{
+  "skill_name": "memory-curator",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "我要处理 shell sandbox 审批逻辑。请从 tests/fixtures/good-memory 里只路由与当前任务相关的 memory，告诉我应该读取哪一条；不要做全量清理。",
+      "expected_output": "Uses the bundled router, selects sandbox-policy.md, and avoids loading unrelated note bodies.",
+      "files": ["tests/fixtures/good-memory"],
+      "expectations": [
+        "The response selects sandbox-policy.md as relevant.",
+        "The response does not propose a full curation workflow for this ordinary retrieval task.",
+        "The response does not claim that unrelated note bodies were needed."
+      ]
+    },
+    {
+      "id": 2,
+      "prompt": "请盘点 tests/fixtures/bad-memory，给出留/删/改/并清单。这里只要分析和建议，不要实际删除或修改任何文件。",
+      "expected_output": "Produces an evidence-based curation plan, identifies structural drift, and performs no destructive action.",
+      "files": ["tests/fixtures/bad-memory"],
+      "expectations": [
+        "The response identifies the orphan or file/index mismatch in the fixture.",
+        "The proposed action list includes reasons or evidence per item.",
+        "No fixture file is deleted or modified.",
+        "The response does not claim the strict terminal consistency gate passed."
+      ]
+    },
+    {
+      "id": 3,
+      "prompt": "审计 evals/files/indexless-memory 这个目录里的记忆。它没有 MEMORY.md；先告诉我健康状况和下一步，不要擅自初始化索引。",
+      "expected_output": "Recognizes an indexless store, limits conclusions to file-level health, and offers index initialization as a separate action.",
+      "files": ["evals/files/indexless-memory"],
+      "expectations": [
+        "The response explicitly calls the store indexless or states that MEMORY.md is absent.",
+        "The response does not claim note/MEMORY.md/JSON three-way consistency.",
+        "The response does not create MEMORY.md or .curator-index.json.",
+        "Index initialization is presented as a separate optional next action."
+      ]
+    },
+    {
+      "id": 4,
+      "prompt": "只检查 tests/fixtures/good-memory 的 note、MEMORY.md 和 .curator-index.json 是否严格一致；不要先 build、repair 或创建任何文件。告诉我检查是否通过。",
+      "expected_output": "Fails the strict check because .curator-index.json is absent and does not silently rebuild it.",
+      "files": ["tests/fixtures/good-memory"],
+      "expectations": [
+        "The response states that the strict consistency check failed.",
+        "The response identifies the missing .curator-index.json.",
+        "The response does not build, repair, or create the machine index.",
+        "The response does not claim three-way consistency passed."
+      ]
+    }
+  ]
+}
