@@ -1,6 +1,6 @@
 ---
 name: memory-curator
-description: Token-frugal routing, indexing, and curation for file-based agent memory in Codex projects (.codex/memory/ + MEMORY.md), legacy Claude Code memory, or one-fact markdown note stores. Use whenever the user asks to clean up, audit, tidy, slim, review, maintain, index, route, or retrieve memory; when memory feels bloated, stale, contradictory, or fragmented; after major project changes; or when file/index drift is suspected. Defaults to reading the machine index first and only loading the few task-relevant notes needed for understanding; full curation detects stale, duplicate, contradictory, orphaned, dead-linked, and fragmented notes and preserves file-count == index-count with no dead links or orphans. 记忆库盘点/清理/维护/瘦身/路由。
+description: Scale-aware routing, indexing, and safe curation for file-based agent memory in Codex projects (.codex/memory/ + MEMORY.md), legacy Claude Code memory, or one-fact markdown note stores. Use whenever the user asks to clean up, audit, tidy, slim, review, maintain, index, route, or retrieve memory; when memory feels bloated, stale, contradictory, fragmented, or out of sync; and after major project changes. Small stores may read a few clearly relevant notes directly; medium and large stores route through the machine index. Full curation detects stale, duplicate, contradictory, orphaned, dead-linked, and fragmented notes, requires approval before destructive changes, and strictly verifies indexed stores. 记忆库盘点/清理/维护/瘦身/路由。
 ---
 
 # Memory Curator —— 文件式记忆库策展
@@ -8,8 +8,11 @@ description: Token-frugal routing, indexing, and curation for file-based agent m
 把"记忆维护"做成一套可复用的低 token 路由 + 重型策展流程。优先适用于 Codex 项目本地文件记忆(`.codex/memory/` + `MEMORY.md`),也兼容旧 Claude Code 记忆与任意"一条笔记一个事实 + 一个索引文件"的 markdown 记忆库。
 
 > **核心目标**:精简、无矛盾、无死信息。过期/矛盾的记忆比没有记忆更危险——它会**误导未来判断**(典型:某条还写"要关沙箱 workaround",实际版本早已修复)。
-> **铁律**:删除不可逆。**删前必读正文确认无独特经验、先出清单给用户过目**。终态必须 `文件数 == 索引数`、无死链、无孤儿。
-> **上下文预算原则**:默认先读 `.curator-index.json` 这种机器索引,只把当前任务需要的 top 1-3 条记忆正文放进上下文。不要为了"可能有用"全量读取 memory；节省出来的上下文留给用户任务、代码和验证输出。
+> **铁律**:删除不可逆。**删前必读正文确认无独特经验、先出清单给用户过目**。对 indexed store,终态必须 note / `MEMORY.md` / `.curator-index.json` 三方严格一致、无死链、无孤儿。
+> **上下文预算原则**:小库只读明确相关的少量 note；中/大库先读 `.curator-index.json`,只把当前任务需要的 top 1-3 条正文放进上下文。不要为了"可能有用"全量读取 memory。
+> **规模阈值**:小库(`<=10` 条且 `<=20KB`)可按需直读；中库(`11-30` 条或 `20-50KB`)必须先 route/index,只读 top 1-3；大库(`>30` 条或 `>50KB`)必须先 build/check 机器索引并分层渐进缩小范围,不要全量读正文。
+
+本 skill 的脚本路径都相对**包含本文件的 skill 目录**解析。以下用 `<skill_dir>` 表示该绝对目录；不要误用当前项目里同名的 `scripts/`。
 
 ---
 
@@ -20,10 +23,16 @@ description: Token-frugal routing, indexing, and curation for file-based agent m
 用户要开始一个普通任务,或问"有没有相关 memory / 该读哪些 memory"时,先路由而不是全量清理:
 
 ```bash
-scripts/route-memory.sh --cwd "$PWD" --limit 3 "<当前任务关键词>"
+<skill_dir>/scripts/route-memory.sh --cwd "$PWD" --limit 3 "<当前任务关键词>"
 ```
 
-只读输出中排名靠前且确实相关的记忆正文。若没有命中,继续任务,不要扩大读取范围。若命中 `status=stale/superseded` 或 `risk=high-if-wrong` 的记忆,先核验再采纳。
+只读输出中排名靠前且确实相关的记忆正文。若没有命中,继续任务,不要扩大读取范围。若持久化机器索引已陈旧,router 默认拒绝使用；先重建 cache,或在明确只需要一次性读取当前源时使用 `--rebuild`。若命中 `status=stale/superseded` 或 `risk=high-if-wrong` 的记忆,先核验再采纳。
+
+规模处理:
+
+- 小库(`<=10` 条且 `<=20KB`):可直接读取明确相关的少量 note。
+- 中库(`11-30` 条或 `20-50KB`):先确保机器索引存在且通过 strict check,再 route top 1-3。
+- 大库(`>30` 条或 `>50KB`):先 build/check `.curator-index.json`,按索引字段分层过滤到 top 1-3 后再读正文。
 
 ### curate（重型，按需）
 
@@ -37,7 +46,7 @@ scripts/route-memory.sh --cwd "$PWD" --limit 3 "<当前任务关键词>"
 
 ## Step 1 · 定位记忆库
 
-不要假设路径。先定位 memory 目录与索引文件:
+不要假设路径,也不要从全局搜索结果里随便取第一个。定位顺序是:用户显式路径/`CURATOR_MEMORY_DIR` → 当前 cwd 向上的 `.codex/memory` → cwd 精确映射的 legacy store。多个候选且无法从 cwd 唯一确定时,请用户指定。
 
 ```bash
 # Codex 项目记忆优先在当前项目内
@@ -46,36 +55,30 @@ find . -path '*/.codex/memory/MEMORY.md' 2>/dev/null
 # 显式覆盖路径（若用户指定）
 printf '%s\n' "${CURATOR_MEMORY_DIR:-}"
 
-# 兼容旧 Claude Code 项目记忆
-find ~/.claude -maxdepth 5 -path '*/memory/MEMORY.md' 2>/dev/null
+# 精确路径仍无法确定时只列候选,不要自动选第一个
+find ~/.claude/projects -maxdepth 3 -path '*/memory/MEMORY.md' 2>/dev/null
 ```
 
-确认两样东西:① 记忆文件目录(一堆 `*.md`)② 索引文件(`MEMORY.md`,每条记忆一行 `- [标题](file.md) — 摘要`)。若没有索引文件,跳过索引相关步骤,只做文件级体检。
+确认两样东西:① 记忆文件目录(一堆 `*.md`)② 人类索引(`MEMORY.md`,每条记忆一行 `- [标题](file.md) — 摘要`)。
+
+- 有 `MEMORY.md`:按 indexed store 处理,机器索引缺失时重建。
+- 没有 `MEMORY.md`:明确报告为 indexless store,只做文件级体检,不要声称三方一致；若要纳入完整管理,把“初始化 `MEMORY.md` + 机器索引”列为单独动作。
 
 ---
 
 ## Step 2 · 盘点（一次看全，不逐个 Read）
 
-优先生成/校验机器索引。索引是 cache,真相源仍是 note 文件 + `MEMORY.md`:
+先用紧凑 inventory 看全库元数据,不要逐条把正文塞进上下文。机器索引是可重建 cache,真相源仍是 note 文件 + `MEMORY.md`:
 
 ```bash
-scripts/build-index.sh --memory-dir <memory_dir>
-scripts/check-index.sh --memory-dir <memory_dir>
+<skill_dir>/scripts/inventory-memory.sh --memory-dir <memory_dir>
+# 若机器索引已存在,先 check 记录漂移；随后重建 cache 并严格复查
+[ ! -f <memory_dir>/.curator-index.json ] || <skill_dir>/scripts/check-index.sh --memory-dir <memory_dir>
+<skill_dir>/scripts/build-index.sh --memory-dir <memory_dir>
+<skill_dir>/scripts/check-index.sh --memory-dir <memory_dir>
 ```
 
-`.curator-index.json` 用于低 token 路由:先看 `file/name/type/status/scope/entities/summary/risk`,再决定是否读正文。
-
-完整策展时,批量打印每条的 description + 字数 + 修改时间 + 时效线索,一屏看完再判断:
-
-```bash
-cd <memory_dir>
-echo "文件数: $(ls *.md | grep -v '^MEMORY' | wc -l) | 索引数: $(grep -c '^- \[' MEMORY.md 2>/dev/null)"
-for f in $(ls *.md | grep -v '^MEMORY'); do
-  desc=$(grep -m1 '^description:' "$f" | sed 's/description: //')
-  echo "### $f  [$(wc -m <"$f"|tr -d ' ')字 | $(stat -f '%Sm' -t '%Y-%m-%d' "$f" 2>/dev/null || date -r "$f" '+%Y-%m-%d')]"
-  echo "  $desc"
-done
-```
+`.curator-index.json` 用于低 token 路由:先看 `file/name/type/status/scope/entities/summary/risk/content_hash`,再决定是否读正文。strict check 会拒绝缺失、损坏、schema 过旧、note 内容变化或 `MEMORY.md` 变化的 cache。
 
 **时效线索词**(grep 高亮辅助判断):`已修复 / 已解决 / 待修 / 待办 / TODO / v\d / 窗口 / 截至 / 临时`。
 
@@ -83,7 +86,7 @@ done
 
 ## Step 3 · 六维体检
 
-对每条记忆过一遍六个维度(详细判据见 `references/judgment-matrix.md`):
+用 inventory 的 `scope/entities/status/risk/summary` 分组筛候选,再只读取需要判断的正文。删除候选必须读正文；矛盾/碎片候选按主题成组读取。需要精细判据时再读取 `references/judgment-matrix.md`,不要默认加载整份 reference。
 
 | 维度 | 找什么 | 信号 |
 |---|---|---|
@@ -111,7 +114,7 @@ done
 
 ## Step 5 · 执行（安全第一）
 
-1. **先出清单**:把每条的 拟定动作 + 理由 列给用户过目(尤其删除项)。删除不可逆,这一步是刹车。
+1. **先出清单**:用 `文件 | 拟定动作 | 理由/证据 | 是否需要确认` 列给用户过目。删除、合并导致的旧文件删除等不可逆动作必须等用户明确确认。
 2. **删文件** → **同步删 MEMORY.md 对应索引行**(成对操作,别只删一半)。
 3. **更新/合并** → 改正文 + 同步索引摘要。
 4. 记忆在项目 `.codex/memory/` 内通常入版本库或至少在工作区内 → 按项目惯例处理；旧 `~/.claude/...` 记忆通常不入版本库 → 通常**无需 commit**。
@@ -121,27 +124,12 @@ done
 ## Step 6 · 校验（终态必须通过）
 
 ```bash
-cd <memory_dir>
-echo "文件数: $(ls *.md|grep -v '^MEMORY'|wc -l) | 索引数: $(grep -c '^- \[' MEMORY.md)"
-# 死链:索引指向不存在的文件
-for f in $(grep -oE '\(([A-Za-z0-9_-]+\.md)\)' MEMORY.md | tr -d '()'); do [ -f "$f" ] || echo "死链: $f"; done
-# 孤儿:文件无索引
-for f in $(ls *.md|grep -v '^MEMORY'); do grep -q "($f)" MEMORY.md || echo "孤儿: $f"; done
+<skill_dir>/scripts/build-index.sh --memory-dir <memory_dir>
+<skill_dir>/scripts/check-index.sh --memory-dir <memory_dir>
+CURATOR_MEMORY_DIR=<memory_dir> <skill_dir>/scripts/mark-curated.sh
 ```
 
-通过标准:**文件数 == 索引数、无死链输出、无孤儿输出,且 `scripts/check-index.sh` 通过**。
-
-校验通过后,**盖一个时间戳**(供 hooks 的"距上次策展天数/提交数"信号判基准;无 hooks 时此步可省):
-
-```bash
-cd <memory_dir>
-{ echo "last_curation_epoch=$(date +%s)"
-  git rev-parse --is-inside-work-tree >/dev/null 2>&1 && echo "last_curation_sha=$(git rev-parse HEAD)"
-} > .curator-state.new
-# 保留已有的 last_notify_epoch 等其它行
-[ -f .curator-state ] && grep -vE '^(last_curation_epoch|last_curation_sha)=' .curator-state >> .curator-state.new
-mv .curator-state.new .curator-state
-```
+通过标准:**note 文件数 == `MEMORY.md` 条目数 == JSON notes 数、无死链、无孤儿、source hash 无漂移,且 strict check 通过**。只有通过后才运行 `mark-curated.sh`;它会保留 `last_notify_epoch` 等其它 state key。
 
 ---
 

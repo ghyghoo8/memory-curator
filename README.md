@@ -16,9 +16,17 @@
 - **六维体检**:① 过期 ② 重复 ③ 矛盾(高危·误判之源) ④ 孤儿/死链 ⑤ 碎片(可合并) ⑥ 易误判(标的/版本/待办重点核)
 - **四档判削**:删 / 更新 / 合并 / 留 —— 每条带判据,不一刀切
 - **安全第一**:删除不可逆 → 删前读正文确认无独特经验、先出清单给用户过目、删文件与删索引成对操作
-- **一致性门禁**:终态必须 `文件数 == 索引数`、无死链、无孤儿
-- **低 token 路由**:生成 `.curator-index.json`,先用机器索引选择 top 1-3 条相关记忆,不全量读正文
+- **严格一致性门禁**:缺失/损坏/过期机器索引都会失败；终态必须 note / `MEMORY.md` / JSON 三方一致、无死链、无孤儿
+- **中英低 token 路由**:中文、英文和混合查询都可从机器索引选择 top 1-3 条相关记忆,不全量读正文
 - **Codex-first**:默认定位项目 `.codex/memory/`,同时兼容旧 Claude Code `~/.claude/projects/.../memory/` 与任意 markdown 记忆库
+
+## 规模边界
+
+- 小库:`<=10` 条 note 且 `<=20KB` markdown,可按任务直接读取明确相关的少量 note。
+- 中库:`11-30` 条 note 或 `20-50KB` markdown,必须先 route/index,只读 top 1-3。
+- 大库:`>30` 条 note 或 `>50KB` markdown,必须先 build/check 机器索引,再按索引字段分层渐进缩小范围,避免全量读正文。
+
+探测器默认在 `>30` 条或 `>50KB` 时提醒进入索引/策展流程；可用 `CURATOR_MAX_NOTES`、`CURATOR_MAX_KB` 覆盖。
 
 ## 安装
 
@@ -46,7 +54,7 @@ cp -r memory-curator <your-project>/.codex/skills/memory-curator
 
 安装后,当你对 Codex 说**"清理一下记忆""盘点记忆库""记忆是不是过期了""tidy up memory"**等,skill 会触发。也可显式提到 `memory-curator`。
 
-普通任务优先走 route:先看机器索引,只读取当前任务需要的少量记忆正文。清理任务才走 curate:定位记忆库 → 一屏盘点全部条目 → 六维体检 → 给出每条的 留/删/改/并 清单(删除项先过目)→ 执行 → 校验文件数、`MEMORY.md`、JSON 索引一致。
+普通任务按规模处理:小库可直读明确相关的少量 note,中/大库先 route top 1-3。清理任务才走 curate:安全定位记忆库 → 紧凑 inventory → 六维体检 → 给出留/删/改/并清单(破坏性动作先确认)→ 执行 → 严格校验 note、`MEMORY.md`、JSON 索引一致。
 
 默认记忆库位置:
 
@@ -63,12 +71,15 @@ cp -r memory-curator <your-project>/.codex/skills/memory-curator
 `.curator-index.json` 是可重建的机器索引,用于减少 token 占用。它不替代 note 文件和 `MEMORY.md`,只负责快速召回:
 
 ```bash
+./scripts/inventory-memory.sh --memory-dir <memory_dir>
 ./scripts/build-index.sh --memory-dir <memory_dir>
 ./scripts/check-index.sh --memory-dir <memory_dir>
-./scripts/route-memory.sh --memory-dir <memory_dir> --limit 3 "shell sandbox approval"
+./scripts/route-memory.sh --memory-dir <memory_dir> --limit 3 "清理 sandbox 审批记忆"
 ```
 
-router 默认只返回 top 3。无命中时不读 memory；命中 `stale/superseded` 时先核验；命中 `high-if-wrong` 时优先精读,因为错用代价高。
+router 默认只返回 top 3。无命中时不读 memory；命中 `stale/superseded` 时先核验；命中 `high-if-wrong` 时优先精读,因为错用代价高。`check-index.sh` 是 strict check:机器索引缺失、JSON 损坏、schema 过旧、note 内容变化或 `MEMORY.md` 变化都会非零退出；修复方式是明确运行 `build-index.sh`,而不是在检查中静默覆盖证据。router 也会拒绝已存在但陈旧的索引；`--rebuild` 只做一次性当前源路由,不会静默覆盖持久化 cache。
+
+脚本定位只接受显式 `CURATOR_MEMORY_DIR`、当前 cwd 向上的项目 `.codex/memory`,或 cwd 的精确 legacy 映射。不会从全局搜索结果中随便选择第一个记忆库。
 
 ## 健康探测器
 
@@ -78,9 +89,15 @@ router 默认只返回 top 3。无命中时不读 memory；命中 `stale/superse
 ./hooks/detect-memory-health.sh "$PWD"
 ```
 
-它只读健康信号,不删改文件。任一信号达阈值时输出原因并 `exit 10`:文件数≠索引数、孤儿/死链、`.curator-index.json` 漂移、时效线索词命中、条数膨胀、距上次策展天数/提交数、未提交 `.md` 改动数。阈值可用环境变量覆盖(`CURATOR_MAX_NOTES` / `CURATOR_MAX_STALE` / `CURATOR_MAX_DAYS` / `CURATOR_MAX_COMMITS` / `CURATOR_MAX_MD_DIRTY` / `CURATOR_COOLDOWN`)。
+它只读健康信号,不删改文件。任一信号达阈值时输出原因并 `exit 10`:文件数≠索引数、孤儿/死链、`.curator-index.json` 漂移、时效线索词命中、条数/体积膨胀、距上次策展天数/提交数、未提交 `.md` 改动数。阈值可用环境变量覆盖(`CURATOR_MAX_NOTES` / `CURATOR_MAX_KB` / `CURATOR_MAX_STALE` / `CURATOR_MAX_DAYS` / `CURATOR_MAX_COMMITS` / `CURATOR_MAX_MD_DIRTY` / `CURATOR_COOLDOWN`)。
 
 > "距上次策展"基准由 skill 策展完成后写入 `<memory_dir>/.curator-state`。
+
+完整策展严格校验通过后,用确定性脚本盖章并保留已有 cooldown state:
+
+```bash
+CURATOR_MEMORY_DIR=<memory_dir> ./scripts/mark-curated.sh
+```
 
 ## Claude Code 兼容 hooks
 
@@ -104,9 +121,11 @@ memory-curator/
 │   └── judgment-matrix.md        # 详细判据矩阵 + 可复用脚本(按需加载)
 ├── scripts/
 │   ├── memory_index.py           # build/check/route 实现
+│   ├── inventory-memory.sh       # 紧凑盘点，不把全部正文塞进上下文
 │   ├── build-index.sh            # 生成 .curator-index.json
 │   ├── check-index.sh            # 校验文件/MEMORY.md/JSON 三方一致
-│   └── route-memory.sh           # 低 token 记忆路由
+│   ├── route-memory.sh           # 中英低 token 记忆路由
+│   └── mark-curated.sh           # strict check 通过后安全更新策展基准
 ├── hooks/
 │   ├── curator-lib.sh            # 共享库:定位记忆库 + 状态文件读写
 │   ├── detect-memory-health.sh   # 探测器:确定性健康信号
@@ -114,6 +133,7 @@ memory-curator/
 │   └── on-pre-push.sh            # Claude Code 兼容触发器:PreToolUse/Bash git push
 ├── install.sh                    # 一键安装 Codex skill,可选 Claude hook 兼容
 ├── tests/                        # fixture + 回归验证
+├── evals/                        # skill 行为评测 + 触发/不触发查询集
 ├── README.md
 └── LICENSE
 ```

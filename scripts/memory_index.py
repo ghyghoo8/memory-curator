@@ -4,6 +4,8 @@
 from __future__ import annotations
 
 import argparse
+from collections import Counter
+import hashlib
 import json
 import os
 import re
@@ -16,8 +18,11 @@ from typing import Any
 
 INDEX_FILE = ".curator-index.json"
 MEMORY_FILE = "MEMORY.md"
+SCHEMA_VERSION = 2
 WORD_RE = re.compile(r"[A-Za-z0-9_./-]+")
-LINK_RE = re.compile(r"\(([^)]+\.md)\)")
+CJK_RE = re.compile(r"[\u3400-\u4dbf\u4e00-\u9fff]+")
+INDEX_LINK_RE = re.compile(r"^\s*-\s+\[[^]]+\]\(([^)]+\.md)\)")
+MIN_ROUTE_SCORE = 3
 
 
 @dataclass
@@ -37,6 +42,7 @@ class Note:
     supersedes: list[str]
     superseded_by: str | None
     links: list[str]
+    content_hash: str
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -55,6 +61,7 @@ class Note:
             "supersedes": self.supersedes,
             "superseded_by": self.superseded_by,
             "links": self.links,
+            "content_hash": self.content_hash,
         }
 
 
@@ -72,10 +79,24 @@ def find_memory_dir(start: str | None) -> Path:
         die(f"CURATOR_MEMORY_DIR does not exist: {path}")
 
     probe = Path(start or os.getcwd()).resolve()
-    for current in [probe, *probe.parents]:
+    candidates = [probe, *probe.parents]
+    for current in candidates:
         candidate = current / ".codex" / "memory"
         if candidate.is_dir():
             return candidate
+
+    legacy_roots = [
+        Path(os.environ.get("CODEX_HOME", str(Path.home() / ".codex"))) / "projects",
+        Path.home() / ".claude" / "projects",
+    ]
+    for current in candidates:
+        if current == current.parent:
+            continue
+        encoded = str(current).replace("/", "-")
+        for root in legacy_roots:
+            legacy = root / encoded / "memory"
+            if legacy.is_dir():
+                return legacy.resolve()
 
     die("memory directory not found; pass --memory-dir or set CURATOR_MEMORY_DIR")
 
@@ -150,7 +171,7 @@ def slug_from_file(path: Path) -> str:
     return path.stem.lower().replace("_", "-")
 
 
-def extract_keywords(*parts: str) -> list[str]:
+def extract_keywords(*parts: str, max_tokens: int | None = None) -> list[str]:
     stop = {
         "the",
         "and",
@@ -165,28 +186,65 @@ def extract_keywords(*parts: str) -> list[str]:
         "when",
         "how",
         "why",
+        "一下",
+        "内容",
+        "当前",
+        "检查",
+        "清理",
+        "相关",
+        "维护",
+        "规则",
+        "策略",
+        "处理",
+        "项目",
+        "项目规则",
+        "记忆",
+        "记忆库",
+        "这个",
     }
     seen: set[str] = set()
     out: list[str] = []
+
+    def add(token: str, *, min_length: int = 3) -> None:
+        token = token.strip("-_.")
+        if len(token) < min_length or token in stop or token in seen:
+            return
+        seen.add(token)
+        out.append(token)
+
     for part in parts:
         for token in WORD_RE.findall(part.lower()):
-            token = token.strip("-_.")
-            if len(token) < 3 or token in stop or token in seen:
-                continue
-            seen.add(token)
-            out.append(token)
-    return out[:16]
+            add(token)
+            if max_tokens is not None and len(out) >= max_tokens:
+                return out
+        for chunk in CJK_RE.findall(part):
+            add(chunk, min_length=1)
+            if max_tokens is not None and len(out) >= max_tokens:
+                return out
+            for width in (2, 3):
+                for start in range(len(chunk) - width + 1):
+                    add(chunk[start : start + width], min_length=1)
+                    if max_tokens is not None and len(out) >= max_tokens:
+                        return out
+    return out
+
+
+def read_index_entries(memory_dir: Path) -> list[tuple[str, str]]:
+    path = memory_dir / MEMORY_FILE
+    if not path.exists():
+        return []
+    entries: list[tuple[str, str]] = []
+    for line in path.read_text(encoding="utf-8").splitlines():
+        match = INDEX_LINK_RE.search(line)
+        if match:
+            entries.append((match.group(1), line.strip()))
+    return entries
 
 
 def read_index_links(memory_dir: Path) -> dict[str, str]:
-    path = memory_dir / MEMORY_FILE
-    if not path.exists():
-        return {}
     links: dict[str, str] = {}
-    for line in path.read_text(encoding="utf-8").splitlines():
-        match = LINK_RE.search(line)
-        if match:
-            links[match.group(1)] = line.strip()
+    for filename, line in read_index_entries(memory_dir):
+        links[filename] = line
     return links
 
 
@@ -217,9 +275,9 @@ def build_index(memory_dir: Path) -> dict[str, Any]:
         scope = as_list(metadata.get("scope") or frontmatter.get("scope"))
         entities = as_list(metadata.get("entities") or frontmatter.get("entities"))
         if not scope:
-            scope = extract_keywords(path.stem, summary)[:6]
+            scope = extract_keywords(path.stem, summary, max_tokens=6)
         if not entities:
-            entities = extract_keywords(summary, body)[:10]
+            entities = extract_keywords(summary, body, max_tokens=10)
         stat = path.stat()
         note = Note(
             file=path.name,
@@ -237,13 +295,21 @@ def build_index(memory_dir: Path) -> dict[str, Any]:
             supersedes=as_list(metadata.get("supersedes") or frontmatter.get("supersedes")),
             superseded_by=metadata.get("superseded_by") or frontmatter.get("superseded_by"),
             links=as_list(metadata.get("links") or frontmatter.get("links")),
+            content_hash=hashlib.sha256(text.encode("utf-8")).hexdigest(),
         )
         notes.append(note)
 
     return {
-        "schema_version": 1,
+        "schema_version": SCHEMA_VERSION,
         "generated_by": "memory-curator",
         "memory_dir": str(memory_dir),
+        "source_hashes": {
+            MEMORY_FILE: (
+                hashlib.sha256((memory_dir / MEMORY_FILE).read_bytes()).hexdigest()
+                if (memory_dir / MEMORY_FILE).exists()
+                else None
+            )
+        },
         "notes": [note.to_dict() for note in notes],
     }
 
@@ -252,7 +318,7 @@ def command_build(args: argparse.Namespace) -> int:
     memory_dir = Path(args.memory_dir).resolve() if args.memory_dir else find_memory_dir(args.cwd)
     index = build_index(memory_dir)
     output = Path(args.output) if args.output else memory_dir / INDEX_FILE
-    output.write_text(json.dumps(index, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    write_json_atomic(output, index)
     print(f"wrote {output} ({len(index['notes'])} notes)")
     return 0
 
@@ -261,15 +327,75 @@ def load_index(memory_dir: Path, rebuild: bool = False) -> dict[str, Any]:
     index_path = memory_dir / INDEX_FILE
     if rebuild or not index_path.exists():
         return build_index(memory_dir)
-    return json.loads(index_path.read_text(encoding="utf-8"))
+    try:
+        index = json.loads(index_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as error:
+        die(f"invalid machine index {index_path}: {error}; rebuild it")
+    if not valid_index_shape(index):
+        die(f"invalid machine index {index_path}: expected an object with a notes list; rebuild it")
+    return index
+
+
+def valid_index_shape(value: Any) -> bool:
+    return (
+        isinstance(value, dict)
+        and isinstance(value.get("notes"), list)
+        and all(isinstance(note, dict) for note in value["notes"])
+    )
+
+
+def write_json_atomic(output: Path, value: dict[str, Any]) -> None:
+    """Write JSON without leaving a partially-written routing cache."""
+    temporary = output.with_name(f".{output.name}.{os.getpid()}.tmp")
+    try:
+        temporary.write_text(
+            json.dumps(value, ensure_ascii=False, indent=2) + "\n",
+            encoding="utf-8",
+        )
+        os.replace(temporary, output)
+    finally:
+        temporary.unlink(missing_ok=True)
 
 
 def check_index(memory_dir: Path) -> tuple[list[str], dict[str, Any]]:
     issues: list[str] = []
-    index = load_index(memory_dir)
+    current = build_index(memory_dir)
+    index_path = memory_dir / INDEX_FILE
+    if not index_path.exists():
+        issues.append(f"machine index missing: {INDEX_FILE}")
+        index = current
+    else:
+        try:
+            index = json.loads(index_path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError) as error:
+            issues.append(f"invalid machine index: {error}")
+            index = current
+        else:
+            if not valid_index_shape(index):
+                issues.append("invalid machine index shape: expected an object with a notes list")
+                index = current
+
     note_files = sorted(path.name for path in memory_dir.glob("*.md") if path.name != MEMORY_FILE)
-    memory_links = sorted(read_index_links(memory_dir))
+    memory_entries = read_index_entries(memory_dir)
+    memory_links = sorted(filename for filename, _ in memory_entries)
     index_files = sorted(str(note.get("file")) for note in index.get("notes", []))
+
+    duplicate_links = sorted(
+        filename
+        for filename, count in Counter(memory_links).items()
+        if count > 1
+    )
+    if duplicate_links:
+        issues.append(f"duplicate {MEMORY_FILE} entries: {duplicate_links}")
+
+    if index_path.exists() and index.get("schema_version") != SCHEMA_VERSION:
+        issues.append(
+            "machine index schema is stale:"
+            f" expected={SCHEMA_VERSION} actual={index.get('schema_version')}"
+        )
+
+    if index.get("source_hashes") != current.get("source_hashes"):
+        issues.append(f"machine index stale for {MEMORY_FILE}")
 
     if note_files != memory_links:
         missing = sorted(set(note_files) - set(memory_links))
@@ -287,6 +413,20 @@ def check_index(memory_dir: Path) -> tuple[list[str], dict[str, Any]]:
             f" missing_from_JSON={missing or []}"
             f" extra_in_JSON={extra or []}"
         )
+
+    current_by_file = {
+        str(note.get("file")): note for note in current.get("notes", [])
+    }
+    indexed_by_file = {
+        str(note.get("file")): note for note in index.get("notes", [])
+    }
+    stale_files = sorted(
+        filename
+        for filename in set(current_by_file) & set(indexed_by_file)
+        if current_by_file[filename] != indexed_by_file[filename]
+    )
+    if stale_files:
+        issues.append(f"machine index stale for notes: {stale_files}")
 
     for filename in memory_links:
         if filename not in note_files:
@@ -322,11 +462,44 @@ def command_check(args: argparse.Namespace) -> int:
     return 0
 
 
+def command_inventory(args: argparse.Namespace) -> int:
+    memory_dir = Path(args.memory_dir).resolve() if args.memory_dir else find_memory_dir(args.cwd)
+    current = build_index(memory_dir)
+    notes = current.get("notes", [])
+    total_bytes = sum(
+        (memory_dir / str(note.get("file"))).stat().st_size
+        for note in notes
+    )
+    total_kb = (total_bytes + 1023) // 1024
+    print(
+        f"files={len(notes)}"
+        f" index_entries={len(read_index_entries(memory_dir))}"
+        f" size_kb={total_kb}"
+    )
+    for note in notes:
+        print(
+            f"- {note.get('file')}"
+            f" [{note.get('type')} {note.get('status')} {note.get('risk')}]"
+            f" {note.get('summary')}"
+        )
+    return 0
+
+
 def score_note(note: dict[str, Any], query_tokens: set[str]) -> int:
     score = 0
+
+    def field_tokens(values: Any) -> set[str]:
+        if not isinstance(values, list):
+            values = [values]
+        return {
+            token
+            for value in values
+            for token in extract_keywords(str(value))
+        }
+
     fields = {
-        "scope": set(str(item).lower() for item in note.get("scope", [])),
-        "entities": set(str(item).lower() for item in note.get("entities", [])),
+        "scope": field_tokens(note.get("scope", [])),
+        "entities": field_tokens(note.get("entities", [])),
         "type": {str(note.get("type", "")).lower()},
         "name": set(extract_keywords(str(note.get("name", "")))),
         "summary": set(extract_keywords(str(note.get("summary", "")))),
@@ -347,6 +520,15 @@ def score_note(note: dict[str, Any], query_tokens: set[str]) -> int:
 
 def command_route(args: argparse.Namespace) -> int:
     memory_dir = Path(args.memory_dir).resolve() if args.memory_dir else find_memory_dir(args.cwd)
+    index_path = memory_dir / INDEX_FILE
+    if index_path.exists() and not args.rebuild:
+        issues, _ = check_index(memory_dir)
+        if issues:
+            die(
+                "machine index is stale or invalid: "
+                + "; ".join(issues)
+                + "; rebuild it or pass --rebuild"
+            )
     index = load_index(memory_dir, rebuild=args.rebuild)
     query = " ".join(args.query)
     query_tokens = set(extract_keywords(query))
@@ -356,7 +538,7 @@ def command_route(args: argparse.Namespace) -> int:
     ranked: list[tuple[int, dict[str, Any]]] = []
     for note in index.get("notes", []):
         score = score_note(note, query_tokens)
-        if score > 0:
+        if score >= MIN_ROUTE_SCORE:
             ranked.append((score, note))
     ranked.sort(key=lambda item: (-item[0], item[1].get("file", "")))
     selected = [
@@ -401,6 +583,10 @@ def main(argv: list[str] | None = None) -> int:
     check = sub.add_parser("check", help="check files, MEMORY.md, and JSON index")
     add_common(check)
     check.set_defaults(func=command_check)
+
+    inventory = sub.add_parser("inventory", help="print a compact current-memory inventory")
+    add_common(inventory)
+    inventory.set_defaults(func=command_inventory)
 
     route = sub.add_parser("route", help="select relevant memories for a query")
     add_common(route)
