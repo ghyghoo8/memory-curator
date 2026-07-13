@@ -115,12 +115,14 @@ CURATOR_MEMORY_DIR=<memory_dir> <skill_dir>/hooks/detect-memory-health.sh "$PWD"
 |---|---|
 | `file/name/summary` | 人和 agent 快速识别 |
 | `type` | user / feedback / project / reference |
+| `layer/domain` | L0-L3 分层与领域过滤 |
 | `status` | active / stale / superseded / archived |
 | `stability` | stable / time-sensitive / temporary |
 | `freshness` | timeless / time-sensitive / unknown |
 | `risk` | normal / high-if-wrong |
 | `scope/entities` | router 主匹配面,避免读全文 |
 | `supersedes/superseded_by` | 矛盾和替代关系 |
+| `links/evidence_refs` | Wiki 关系边与证据追溯 |
 | `content_hash` | 任意正文变化检测,不依赖 mtime |
 
 索引顶层还保存 `MEMORY.md` 的 source hash。strict check 会拒绝缺失、损坏、旧 schema、note hash 漂移或 `MEMORY.md` hash 漂移；`check` 只诊断,`build` 才修复 cache。
@@ -142,7 +144,9 @@ CURATOR_MEMORY_DIR=<memory_dir> <skill_dir>/hooks/detect-memory-health.sh "$PWD"
 name: <kebab-case-slug>
 description: <一行摘要，用于召回相关性判断>
 metadata:
+  layer: L1 | L2 | L3
   type: user | feedback | project | reference
+  domain: <stable-domain>
   status: active | stale | superseded | archived
   stability: stable | time-sensitive | temporary
   freshness: timeless | time-sensitive | unknown
@@ -152,6 +156,7 @@ metadata:
   review_after: <YYYY-MM-DD or null>
   supersedes: []
   superseded_by: null
+  evidence_refs: []
 ---
 
 <事实主体。feedback/project 类补：>

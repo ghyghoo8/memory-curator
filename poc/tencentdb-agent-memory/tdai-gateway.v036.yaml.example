@@ -1,0 +1,27 @@
+server:
+  host: "127.0.0.1"
+  port: 18420
+  apiKey: ${TDAI_GATEWAY_API_KEY}
+  corsOrigins: []
+
+data:
+  baseDir: ${TDAI_DATA_DIR}
+
+llm:
+  apiKey: ""
+
+memory:
+  storeBackend: sqlite
+  capture:
+    enabled: true
+    l0l1RetentionDays: 3
+  extraction:
+    enabled: false
+    enableDedup: true
+  recall:
+    enabled: true
+    strategy: keyword
+    maxResults: 5
+  embedding:
+    enabled: false
+    provider: none

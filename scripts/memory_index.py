@@ -18,11 +18,19 @@ from typing import Any
 
 INDEX_FILE = ".curator-index.json"
 MEMORY_FILE = "MEMORY.md"
-SCHEMA_VERSION = 2
+SCHEMA_VERSION = 3
 WORD_RE = re.compile(r"[A-Za-z0-9_./-]+")
 CJK_RE = re.compile(r"[\u3400-\u4dbf\u4e00-\u9fff]+")
 INDEX_LINK_RE = re.compile(r"^\s*-\s+\[[^]]+\]\(([^)]+\.md)\)")
-MIN_ROUTE_SCORE = 3
+WIKI_LINK_RE = re.compile(r"\[\[([^]|#]+)(?:[|#][^]]*)?\]\]")
+MIN_ROUTE_SCORE = 5
+VALID_LAYERS = {"L0", "L1", "L2", "L3"}
+INACTIVE_STATUSES = {"stale", "archived", "superseded"}
+VALID_STATUSES = {"active", *INACTIVE_STATUSES}
+VALID_FRESHNESS = {"timeless", "stable", "time-sensitive"}
+VALID_STABILITY = {"stable", "time-sensitive", "temporary", "volatile"}
+VALID_RISKS = {"normal", "high-if-wrong"}
+NEGATION_MARKERS = ("不得", "不要", "禁止", "不能", "不再", "must not", "never", " no ")
 
 
 @dataclass
@@ -30,6 +38,8 @@ class Note:
     file: str
     name: str
     type: str
+    layer: str
+    domain: str
     status: str
     stability: str
     freshness: str
@@ -42,6 +52,7 @@ class Note:
     supersedes: list[str]
     superseded_by: str | None
     links: list[str]
+    evidence_refs: list[str]
     content_hash: str
 
     def to_dict(self) -> dict[str, Any]:
@@ -49,6 +60,8 @@ class Note:
             "file": self.file,
             "name": self.name,
             "type": self.type,
+            "layer": self.layer,
+            "domain": self.domain,
             "status": self.status,
             "stability": self.stability,
             "freshness": self.freshness,
@@ -61,6 +74,7 @@ class Note:
             "supersedes": self.supersedes,
             "superseded_by": self.superseded_by,
             "links": self.links,
+            "evidence_refs": self.evidence_refs,
             "content_hash": self.content_hash,
         }
 
@@ -215,6 +229,10 @@ def extract_keywords(*parts: str, max_tokens: int | None = None) -> list[str]:
     for part in parts:
         for token in WORD_RE.findall(part.lower()):
             add(token)
+            for segment in re.split(r"[._/-]+", token):
+                add(segment, min_length=2)
+                if segment.endswith("s") and len(segment) > 4:
+                    add(segment[:-1], min_length=2)
             if max_tokens is not None and len(out) >= max_tokens:
                 return out
         for chunk in CJK_RE.findall(part):
@@ -278,11 +296,16 @@ def build_index(memory_dir: Path) -> dict[str, Any]:
             scope = extract_keywords(path.stem, summary, max_tokens=6)
         if not entities:
             entities = extract_keywords(summary, body, max_tokens=10)
+        metadata_links = as_list(metadata.get("links") or frontmatter.get("links"))
+        wiki_links = [match.strip() for match in WIKI_LINK_RE.findall(body) if match.strip()]
+        links = list(dict.fromkeys([*metadata_links, *wiki_links]))
         stat = path.stat()
         note = Note(
             file=path.name,
             name=name,
             type=str(metadata.get("type") or frontmatter.get("type") or "project"),
+            layer=str(metadata.get("layer") or frontmatter.get("layer") or ""),
+            domain=str(metadata.get("domain") or frontmatter.get("domain") or ""),
             status=str(metadata.get("status") or frontmatter.get("status") or "active"),
             stability=str(metadata.get("stability") or frontmatter.get("stability") or "unknown"),
             freshness=str(metadata.get("freshness") or frontmatter.get("freshness") or "unknown"),
@@ -294,7 +317,10 @@ def build_index(memory_dir: Path) -> dict[str, Any]:
             review_after=metadata.get("review_after") or frontmatter.get("review_after"),
             supersedes=as_list(metadata.get("supersedes") or frontmatter.get("supersedes")),
             superseded_by=metadata.get("superseded_by") or frontmatter.get("superseded_by"),
-            links=as_list(metadata.get("links") or frontmatter.get("links")),
+            links=links,
+            evidence_refs=as_list(
+                metadata.get("evidence_refs") or frontmatter.get("evidence_refs")
+            ),
             content_hash=hashlib.sha256(text.encode("utf-8")).hexdigest(),
         )
         notes.append(note)
@@ -451,6 +477,64 @@ def check_index(memory_dir: Path) -> tuple[list[str], dict[str, Any]]:
     return issues, index
 
 
+def check_governance(memory_dir: Path, *, today: date | None = None) -> list[str]:
+    """Validate lifecycle metadata without changing the memory store."""
+    issues: list[str] = []
+    today = today or date.today()
+    notes = build_index(memory_dir).get("notes", [])
+    note_names = {str(note.get("name", "")) for note in notes}
+    note_names.update(Path(str(note.get("file", ""))).stem for note in notes)
+    for note in notes:
+        filename = str(note.get("file", ""))
+        layer = str(note.get("layer", ""))
+        if layer not in VALID_LAYERS:
+            issues.append(f"{filename}: layer must be one of {sorted(VALID_LAYERS)}")
+        if not note.get("domain"):
+            issues.append(f"{filename}: missing domain")
+        status = str(note.get("status", ""))
+        freshness = str(note.get("freshness", ""))
+        stability = str(note.get("stability", ""))
+        risk = str(note.get("risk", ""))
+        if status not in VALID_STATUSES:
+            issues.append(f"{filename}: invalid status {status!r}")
+        if freshness not in VALID_FRESHNESS:
+            issues.append(f"{filename}: invalid freshness {freshness!r}")
+        if stability not in VALID_STABILITY:
+            issues.append(f"{filename}: invalid stability {stability!r}")
+        if risk not in VALID_RISKS:
+            issues.append(f"{filename}: invalid risk {risk!r}")
+
+        review_after = note.get("review_after")
+        if status == "active" and freshness == "time-sensitive" and not review_after:
+            issues.append(f"{filename}: time-sensitive note requires review_after")
+        if review_after:
+            try:
+                review_date = date.fromisoformat(str(review_after))
+            except ValueError:
+                issues.append(f"{filename}: review_after must be YYYY-MM-DD")
+            else:
+                if review_date < today and status == "active":
+                    issues.append(f"{filename}: active note review_after is overdue")
+
+        if (
+            note.get("risk") == "high-if-wrong"
+            and not note.get("evidence_refs")
+            and not review_after
+        ):
+            issues.append(
+                f"{filename}: high-if-wrong note requires evidence_refs or review_after"
+            )
+        if status == "superseded" and not note.get("superseded_by"):
+            issues.append(f"{filename}: superseded note requires superseded_by")
+        successor = str(note.get("superseded_by") or "")
+        if successor and successor not in note_names:
+            issues.append(f"{filename}: superseded_by target does not exist: {successor}")
+        for target in note.get("links", []):
+            if str(target) not in note_names:
+                issues.append(f"{filename}: wiki link target does not exist: {target}")
+    return issues
+
+
 def command_check(args: argparse.Namespace) -> int:
     memory_dir = Path(args.memory_dir).resolve() if args.memory_dir else find_memory_dir(args.cwd)
     issues, index = check_index(memory_dir)
@@ -459,6 +543,17 @@ def command_check(args: argparse.Namespace) -> int:
             print(issue)
         return 1
     print(f"ok: {len(index.get('notes', []))} indexed notes")
+    return 0
+
+
+def command_governance_check(args: argparse.Namespace) -> int:
+    memory_dir = Path(args.memory_dir).resolve() if args.memory_dir else find_memory_dir(args.cwd)
+    issues = check_governance(memory_dir)
+    if issues:
+        for issue in issues:
+            print(issue)
+        return 1
+    print("ok: governance metadata valid")
     return 0
 
 
@@ -509,13 +604,119 @@ def score_note(note: dict[str, Any], query_tokens: set[str]) -> int:
     score += 3 * len(query_tokens & fields["type"])
     score += 2 * len(query_tokens & fields["name"])
     score += len(query_tokens & fields["summary"])
-    if note.get("status") in {"stale", "archived", "superseded"}:
+    if note.get("status") in INACTIVE_STATUSES:
         score -= 4
     if note.get("freshness") == "time-sensitive":
         score -= 1
     if note.get("risk") == "high-if-wrong" and score > 0:
         score += 3
     return score
+
+
+def is_default_routable(
+    note: dict[str, Any],
+    *,
+    today: date | None = None,
+    include_inactive: bool = False,
+    include_overdue: bool = False,
+) -> bool:
+    if not include_inactive and note.get("status") in INACTIVE_STATUSES:
+        return False
+    if not include_overdue and note.get("status") == "active" and note.get("review_after"):
+        try:
+            review_date = date.fromisoformat(str(note["review_after"]))
+        except ValueError:
+            return False
+        if review_date < (today or date.today()):
+            return False
+    return True
+
+
+def _index_corpus_hash(index: dict[str, Any]) -> str:
+    payload = {
+        "source_hashes": index.get("source_hashes", {}),
+        "notes": [
+            (note.get("file"), note.get("content_hash"))
+            for note in index.get("notes", [])
+        ],
+    }
+    return hashlib.sha256(json.dumps(payload, sort_keys=True).encode("utf-8")).hexdigest()
+
+
+def preflight_candidate(
+    memory_dir: Path,
+    candidate_path: Path,
+    *,
+    similarity_threshold: float = 0.55,
+    limit: int = 5,
+) -> dict[str, Any]:
+    memory_dir = memory_dir.resolve()
+    candidate_path = candidate_path.resolve()
+    candidate_text = candidate_path.read_text(encoding="utf-8")
+    candidate_hash = hashlib.sha256(candidate_text.encode("utf-8")).hexdigest()
+    candidate_tokens = set(extract_keywords(candidate_text, max_tokens=500))
+    candidate_negative = any(marker in candidate_text.lower() for marker in NEGATION_MARKERS)
+    index = build_index(memory_dir)
+    exact_duplicates: list[str] = []
+    ranked: list[dict[str, Any]] = []
+    for note in index.get("notes", []):
+        path = (memory_dir / str(note["file"])).resolve()
+        if path == candidate_path:
+            continue
+        text = path.read_text(encoding="utf-8")
+        content_hash = hashlib.sha256(text.encode("utf-8")).hexdigest()
+        if content_hash == candidate_hash:
+            exact_duplicates.append(str(note["file"]))
+        tokens = set(extract_keywords(text, max_tokens=500))
+        union = candidate_tokens | tokens
+        similarity = len(candidate_tokens & tokens) / len(union) if union else 0.0
+        if similarity <= 0:
+            continue
+        note_negative = any(marker in text.lower() for marker in NEGATION_MARKERS)
+        ranked.append(
+            {
+                "file": str(note["file"]),
+                "similarity": round(similarity, 6),
+                "potential_conflict": (
+                    similarity >= similarity_threshold
+                    and candidate_negative != note_negative
+                ),
+                "status": note.get("status"),
+                "summary": note.get("summary"),
+            }
+        )
+    ranked.sort(key=lambda row: (-float(row["similarity"]), str(row["file"])))
+    top = ranked[:limit]
+    conflicts = [row for row in ranked if row["potential_conflict"]]
+    return {
+        "candidate": str(candidate_path),
+        "candidate_hash": candidate_hash,
+        "corpus_hash": _index_corpus_hash(index),
+        "exact_duplicates": exact_duplicates,
+        "similar_candidates": top,
+        "potential_conflicts": conflicts,
+        "blocking": bool(exact_duplicates or conflicts),
+    }
+
+
+def command_preflight(args: argparse.Namespace) -> int:
+    if not 0 <= args.similarity_threshold <= 1:
+        die("similarity threshold must be between 0 and 1")
+    if not 1 <= args.limit <= 100:
+        die("preflight limit must be between 1 and 100")
+    memory_dir = Path(args.memory_dir).resolve() if args.memory_dir else find_memory_dir(args.cwd)
+    result = preflight_candidate(
+        memory_dir,
+        Path(args.candidate),
+        similarity_threshold=args.similarity_threshold,
+        limit=args.limit,
+    )
+    result["acknowledged"] = bool(args.acknowledge)
+    rendered = json.dumps(result, ensure_ascii=False, indent=2) + "\n"
+    if args.receipt:
+        Path(args.receipt).write_text(rendered, encoding="utf-8")
+    print(rendered, end="")
+    return 0 if args.acknowledge or not result["blocking"] else 2
 
 
 def command_route(args: argparse.Namespace) -> int:
@@ -537,6 +738,12 @@ def command_route(args: argparse.Namespace) -> int:
 
     ranked: list[tuple[int, dict[str, Any]]] = []
     for note in index.get("notes", []):
+        if not is_default_routable(
+            note,
+            include_inactive=args.include_inactive,
+            include_overdue=args.include_overdue,
+        ):
+            continue
         score = score_note(note, query_tokens)
         if score >= MIN_ROUTE_SCORE:
             ranked.append((score, note))
@@ -584,6 +791,12 @@ def main(argv: list[str] | None = None) -> int:
     add_common(check)
     check.set_defaults(func=command_check)
 
+    governance = sub.add_parser(
+        "governance-check", help="check lifecycle, freshness, and evidence metadata"
+    )
+    add_common(governance)
+    governance.set_defaults(func=command_governance_check)
+
     inventory = sub.add_parser("inventory", help="print a compact current-memory inventory")
     add_common(inventory)
     inventory.set_defaults(func=command_inventory)
@@ -591,10 +804,23 @@ def main(argv: list[str] | None = None) -> int:
     route = sub.add_parser("route", help="select relevant memories for a query")
     add_common(route)
     route.add_argument("--limit", type=int, default=3)
+    route.add_argument("--include-inactive", action="store_true")
+    route.add_argument("--include-overdue", action="store_true")
     route.add_argument("--json", action="store_true")
     route.add_argument("--rebuild", action="store_true")
     route.add_argument("query", nargs="+")
     route.set_defaults(func=command_route)
+
+    preflight = sub.add_parser(
+        "preflight", help="check a candidate note for duplicates and likely conflicts"
+    )
+    add_common(preflight)
+    preflight.add_argument("--candidate", required=True)
+    preflight.add_argument("--similarity-threshold", type=float, default=0.55)
+    preflight.add_argument("--limit", type=int, default=5)
+    preflight.add_argument("--receipt")
+    preflight.add_argument("--acknowledge", action="store_true")
+    preflight.set_defaults(func=command_preflight)
 
     args = parser.parse_args(argv)
     return args.func(args)

@@ -5,7 +5,7 @@ description: Scale-aware routing, indexing, and safe curation for file-based age
 
 # Memory Curator —— 文件式记忆库策展
 
-把"记忆维护"做成一套可复用的低 token 路由 + 重型策展流程。优先适用于 Codex 项目本地文件记忆(`.codex/memory/` + `MEMORY.md`),也兼容旧 Claude Code 记忆与任意"一条笔记一个事实 + 一个索引文件"的 markdown 记忆库。
+把"记忆维护"做成一套可复用的低 token 路由 + 重型策展流程。优先适用于 Codex 项目本地文件记忆(`.codex/memory/` + `MEMORY.md`),也兼容旧 Claude Code 记忆与任意"一条笔记一个事实 + 一个索引文件"的 markdown 记忆库。可选的 SQLite FTS5 + JSON 向量侧车只负责召回；当前本地基线用 Python cosine 查询，sqlite-vec 仅在隔离 TDAI POC 中验证，Markdown 始终是真相源。
 
 > **核心目标**:精简、无矛盾、无死信息。过期/矛盾的记忆比没有记忆更危险——它会**误导未来判断**(典型:某条还写"要关沙箱 workaround",实际版本早已修复)。
 > **铁律**:删除不可逆。**删前必读正文确认无独特经验、先出清单给用户过目**。对 indexed store,终态必须 note / `MEMORY.md` / `.curator-index.json` 三方严格一致、无死链、无孤儿。
@@ -76,9 +76,12 @@ find ~/.claude/projects -maxdepth 3 -path '*/memory/MEMORY.md' 2>/dev/null
 [ ! -f <memory_dir>/.curator-index.json ] || <skill_dir>/scripts/check-index.sh --memory-dir <memory_dir>
 <skill_dir>/scripts/build-index.sh --memory-dir <memory_dir>
 <skill_dir>/scripts/check-index.sh --memory-dir <memory_dir>
+<skill_dir>/scripts/governance-check.sh --memory-dir <memory_dir>
 ```
 
 `.curator-index.json` 用于低 token 路由:先看 `file/name/type/status/scope/entities/summary/risk/content_hash`,再决定是否读正文。strict check 会拒绝缺失、损坏、schema 过旧、note 内容变化或 `MEMORY.md` 变化的 cache。
+
+治理门禁额外检查 `layer/domain/freshness/stability/review_after/evidence_refs/supersession`。它只诊断，不自动修复或删除。
 
 **时效线索词**(grep 高亮辅助判断):`已修复 / 已解决 / 待修 / 待办 / TODO / v\d / 窗口 / 截至 / 临时`。
 
@@ -119,6 +122,8 @@ find ~/.claude/projects -maxdepth 3 -path '*/memory/MEMORY.md' 2>/dev/null
 3. **更新/合并** → 改正文 + 同步索引摘要。
 4. 记忆在项目 `.codex/memory/` 内通常入版本库或至少在工作区内 → 按项目惯例处理；旧 `~/.claude/...` 记忆通常不入版本库 → 通常**无需 commit**。
 
+当审计覆盖全部 note 时，可把分类写成显式 JSON manifest，先 dry-run 再应用；随后用 `rebuild-memory-registry.sh` 按 Active L3/L2/L1/L0 与 stale/superseded/archived 重建 `MEMORY.md`。这两个脚本不替代删除审批。
+
 ---
 
 ## Step 6 · 校验（终态必须通过）
@@ -126,17 +131,30 @@ find ~/.claude/projects -maxdepth 3 -path '*/memory/MEMORY.md' 2>/dev/null
 ```bash
 <skill_dir>/scripts/build-index.sh --memory-dir <memory_dir>
 <skill_dir>/scripts/check-index.sh --memory-dir <memory_dir>
+<skill_dir>/scripts/governance-check.sh --memory-dir <memory_dir>
 CURATOR_MEMORY_DIR=<memory_dir> <skill_dir>/scripts/mark-curated.sh
 ```
 
-通过标准:**note 文件数 == `MEMORY.md` 条目数 == JSON notes 数、无死链、无孤儿、source hash 无漂移,且 strict check 通过**。只有通过后才运行 `mark-curated.sh`;它会保留 `last_notify_epoch` 等其它 state key。
+通过标准:**note 文件数 == `MEMORY.md` 条目数 == JSON notes 数、无死链、无孤儿、source hash 无漂移,且 strict check 与治理门禁都通过**。只有通过后才运行 `mark-curated.sh`;它会保留 `last_notify_epoch` 等其它 state key。
+
+可选召回侧车在治理通过后显式重建：
+
+```bash
+<skill_dir>/scripts/build-search-index.sh --memory-dir <memory_dir> --provider local-hash
+<skill_dir>/scripts/search-memory.sh --memory-dir <memory_dir> --strategy hybrid "查询"
+```
+
+若无向量索引，hybrid/vector 必须显式报告降级，不能把 keyword fallback 当作混合检索成绩。
+真实语义 embedding 只能通过显式受信任 command adapter 接入；远程服务会接收
+note 内容，必须先完成数据外发授权。provider/model/dimensions 不匹配或 adapter
+失败时硬失败，不得自动切到 local-hash/FeatureHashing 后仍按 semantic 计分。
 
 ---
 
 ## 写入新记忆时的规范(顺带校正)
 
-维护中若要新增/改写记忆,遵循一文件一事实 + frontmatter(`name`/`description`/`metadata.type`)+ MEMORY.md 一行一指针;feedback/project 类正文带 **Why** + **How to apply**;用 `[[name]]` 互链。详见 `references/judgment-matrix.md` 的"健康记忆形态"。
+维护中若要新增/改写记忆,遵循一文件一事实 + frontmatter(`name`/`description`/`metadata.layer/type/domain/status/freshness/stability/risk`)+ MEMORY.md 一行一指针;time-sensitive 必须设 `review_after`;high-if-wrong 必须有 `evidence_refs` 或复核日期;feedback/project 类正文带 **Why** + **How to apply**;用 `[[name]]` 互链。详见 `references/judgment-matrix.md` 的"健康记忆形态"。
 
-写入前先跑 router 或查 `.curator-index.json`:若已有同主题记忆,更新旧文件而不是新增,避免碎片化和未来 token 膨胀。
+写入前必须对候选文件运行 `preflight-memory.sh --memory-dir <memory_dir> --candidate <candidate.md>`。精确重复或高相似反向规则会非零退出；读取候选正文后，确认确需并存才传 `--acknowledge`，需要审计时同时写 `--receipt`。若已有同主题记忆,更新旧文件而不是新增,避免碎片化和未来 token 膨胀。
 
 > 触发时机建议:大改动后顺手 / 感觉记忆变多或自相矛盾时主动跑,不必等用户每次提醒。
