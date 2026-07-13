@@ -137,12 +137,29 @@ CURATOR_MEMORY_DIR=<memory_dir> <skill_dir>/scripts/mark-curated.sh
 
 通过标准:**note 文件数 == `MEMORY.md` 条目数 == JSON notes 数、无死链、无孤儿、source hash 无漂移,且 strict check 与治理门禁都通过**。只有通过后才运行 `mark-curated.sh`;它会保留 `last_notify_epoch` 等其它 state key。
 
-可选召回侧车在治理通过后显式重建：
+可选召回侧车在治理通过后显式重建。`local-hash` 只用于零网络、可复现的
+回归基线，不等同于真实语义 embedding：
 
 ```bash
 <skill_dir>/scripts/build-search-index.sh --memory-dir <memory_dir> --provider local-hash
 <skill_dir>/scripts/search-memory.sh --memory-dir <memory_dir> --strategy hybrid "查询"
 ```
+
+启用真实语义 embedding 时，优先使用已有的 **API + Key**，由受信任的项目
+command adapter 调用；项目 adapter 的通用环境变量统一为 `EMBEDDING_API_KEY`、
+`EMBEDDING_BASE_URL`、`EMBEDDING_MODEL`，不使用 provider-specific 旧变量。
+`memory-curator` 本身不读取、输出或持久化 API Key，默认只发送 summary：
+
+```bash
+<skill_dir>/scripts/build-search-index.sh \
+  --memory-dir <memory_dir> --db <semantic.sqlite> \
+  --provider command --embedding-content summary \
+  --embedding-command '<trusted-adapter-command>'
+```
+
+本地 BGE-M3 仅作为禁止数据外发、需要离线运行、或远程 API 不可用时的可选
+方案，不是默认依赖；不要为了常规使用自动下载模型。API 配置优先级不改变项目的
+检索路由决策：若 benchmark 尚未证明 semantic 更优，仍可保持 keyword 为默认路由。
 
 若无向量索引，hybrid/vector 必须显式报告降级，不能把 keyword fallback 当作混合检索成绩。
 真实语义 embedding 只能通过显式受信任 command adapter 接入；远程服务会接收
