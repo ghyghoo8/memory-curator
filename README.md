@@ -18,6 +18,8 @@
 - **安全第一**:删除不可逆 → 删前读正文确认无独特经验、先出清单给用户过目、删文件与删索引成对操作
 - **严格一致性门禁**:缺失/损坏/过期机器索引都会失败；终态必须 note / `MEMORY.md` / JSON 三方一致、无死链、无孤儿
 - **中英低 token 路由**:中文、英文和混合查询都可从机器索引选择 top 1-3 条相关记忆,不全量读正文
+- **治理元数据门禁**:检查 L0-L3、domain、时效、复核日期、证据和 supersession 生命周期
+- **可选混合检索侧车**:SQLite FTS5 + JSON 向量 + Python cosine + RRF；数据库可删除重建，Markdown 始终是真相源；sqlite-vec 仅在隔离 TDAI POC 中验证
 - **Codex-first**:默认定位项目 `.codex/memory/`,同时兼容旧 Claude Code `~/.claude/projects/.../memory/` 与任意 markdown 记忆库
 
 ## 规模边界
@@ -74,12 +76,84 @@ cp -r memory-curator <your-project>/.codex/skills/memory-curator
 ./scripts/inventory-memory.sh --memory-dir <memory_dir>
 ./scripts/build-index.sh --memory-dir <memory_dir>
 ./scripts/check-index.sh --memory-dir <memory_dir>
+./scripts/governance-check.sh --memory-dir <memory_dir>
+./scripts/preflight-memory.sh --memory-dir <memory_dir> --candidate <candidate.md>
 ./scripts/route-memory.sh --memory-dir <memory_dir> --limit 3 "清理 sandbox 审批记忆"
 ```
 
-router 默认只返回 top 3。无命中时不读 memory；命中 `stale/superseded` 时先核验；命中 `high-if-wrong` 时优先精读,因为错用代价高。`check-index.sh` 是 strict check:机器索引缺失、JSON 损坏、schema 过旧、note 内容变化或 `MEMORY.md` 变化都会非零退出；修复方式是明确运行 `build-index.sh`,而不是在检查中静默覆盖证据。router 也会拒绝已存在但陈旧的索引；`--rebuild` 只做一次性当前源路由,不会静默覆盖持久化 cache。
+router 默认只返回 top 3，并排除 `stale/superseded/archived`；只有显式传 `--include-inactive` 才用于历史核验。命中 `high-if-wrong` 时优先精读,因为错用代价高。`check-index.sh` 是 strict check:机器索引缺失、JSON 损坏、schema 过旧、note 内容变化或 `MEMORY.md` 变化都会非零退出；修复方式是明确运行 `build-index.sh`,而不是在检查中静默覆盖证据。router 也会拒绝已存在但陈旧的索引；`--rebuild` 只做一次性当前源路由,不会静默覆盖持久化 cache。
+
+批量治理用显式 manifest，先 dry-run，再落地并重建人类 registry：
+
+```bash
+./scripts/apply-governance-metadata.sh --memory-dir <memory_dir> --manifest <manifest.json>
+./scripts/apply-governance-metadata.sh --memory-dir <memory_dir> --manifest <manifest.json> --apply
+./scripts/rebuild-memory-registry.sh --memory-dir <memory_dir> --apply
+```
+
+新增 note 前必须先运行 `preflight-memory.sh`。精确重复或高相似反向规则会
+返回非零并列出候选；确认确需保留后才使用 `--acknowledge`，可配合
+`--receipt <path>` 保存包含 candidate/corpus hash 的审计凭据。
 
 脚本定位只接受显式 `CURATOR_MEMORY_DIR`、当前 cwd 向上的项目 `.codex/memory`,或 cwd 的精确 legacy 映射。不会从全局搜索结果中随便选择第一个记忆库。
+
+治理完成后可建立派生搜索库：
+
+```bash
+./scripts/build-search-index.sh --memory-dir <memory_dir> --provider local-hash
+./scripts/search-memory.sh --memory-dir <memory_dir> --strategy keyword "精确规则"
+./scripts/search-memory.sh --memory-dir <memory_dir> --strategy hybrid "语义查询"
+```
+
+`local-hash` 是零网络、可复现的向量基线，不等同于语义 embedding。若没有可用向量，hybrid/vector 会在输出中显式标记降级。
+
+### Embedding 配置优先级
+
+1. **API + Key（推荐）**：通过受信任的结构化 command adapter 调用已有
+   OpenAI-compatible embedding API。API Key 只配置在 adapter 的运行环境中；
+   `memory-curator` 不读取、不输出、不持久化密钥。远程调用前仍须确认记忆内容的
+   外发范围，默认优先使用 `--embedding-content summary`。项目 adapter 推荐使用
+   provider-neutral 的 `EMBEDDING_API_KEY`、`EMBEDDING_BASE_URL`、
+   `EMBEDDING_MODEL`，不保留 provider-specific 旧变量兼容。
+2. **本地 BGE-M3（可选）**：仅在禁止数据外发、需要离线运行、或远程 API
+   不可用时启用。它不是默认依赖，也不需要为了正常使用 `memory-curator` 而下载。
+
+真实 embedding 通过显式结构化命令接入；命令从 stdin 接收
+`{"texts":[...]}`，向 stdout 返回
+`{"provider":"...","model":"...","provider_fingerprint":"...","vectors":[...]}`：
+
+```bash
+./scripts/build-search-index.sh \
+  --memory-dir <memory_dir> --db <semantic.sqlite> \
+  --provider command --embedding-content summary \
+  --embedding-command '<trusted-adapter-command>'
+./scripts/search-memory.sh \
+  --memory-dir <memory_dir> --db <semantic.sqlite> --strategy hybrid \
+  --embedding-command '<trusted-adapter-command>' "查询"
+```
+
+adapter 命令属于受信任本地代码边界；数据库只记录 provider/model/dimensions
+和不含密钥的 provider fingerprint，不保存命令或密钥。远程 embedding 涉及
+记忆内容外发，必须先取得明确授权。命令失败或 provider/model/fingerprint/dimension
+变化都会硬失败，不静默冒充语义检索。构建按32条分批，默认只向量化 active 且
+未过 `review_after` 的记忆；只有显式 `--embedding-include-inactive` 才会扩大范围。
+`--embedding-content summary` 只发送 name/description/domain/type/scope/entities；
+`full` 才追加正文（单条最多 8,000 字符）。
+
+统一评测使用：
+
+```bash
+./scripts/benchmark-memory.sh \
+  --memory-dir <memory_dir> \
+  --cases <cases.json> \
+  --adapters curator-keyword,curator-hybrid
+```
+
+TencentDB Agent Memory 的固定版本隔离 POC 见 `poc/tencentdb-agent-memory/README.md`；它只作为检索侧车候选，不接管 Markdown 真相源。
+
+若需要上述本地可选方案，可在明确批准约 2.27GB 模型下载后使用
+`poc/local_bge_m3/README.md` 的固定 revision、loopback-only BGE-M3 POC；
+模型与依赖只缓存到 `/private/tmp`，不修改项目虚拟环境。
 
 ## 健康探测器
 
@@ -124,7 +198,13 @@ memory-curator/
 │   ├── inventory-memory.sh       # 紧凑盘点，不把全部正文塞进上下文
 │   ├── build-index.sh            # 生成 .curator-index.json
 │   ├── check-index.sh            # 校验文件/MEMORY.md/JSON 三方一致
+│   ├── governance-check.sh       # 校验分层、时效、证据和生命周期
+│   ├── preflight-memory.sh       # 新 note 写入前重复/潜在冲突门禁
+│   ├── memory_metadata.py        # 显式 manifest 批量迁移治理元数据
+│   ├── memory_registry.py        # 按 L3/L2/L1 与 inactive 重建 MEMORY.md
 │   ├── route-memory.sh           # 中英低 token 记忆路由
+│   ├── memory_search.py          # FTS5/JSON-vector/Python-cosine/RRF 派生检索库
+│   ├── memory_benchmark.py       # 多 adapter 统一召回基准
 │   └── mark-curated.sh           # strict check 通过后安全更新策展基准
 ├── hooks/
 │   ├── curator-lib.sh            # 共享库:定位记忆库 + 状态文件读写
@@ -143,7 +223,7 @@ memory-curator/
 - Codex 项目文件记忆:`<project>/.codex/memory/` + `MEMORY.md`
 - 旧 Claude Code 文件记忆:`~/.claude/projects/<proj>/memory/` + `MEMORY.md`
 - 任意 markdown 记忆库:一文件一事实 + 一个索引文件
-- 非文件式记忆(向量库/数据库)不在本 skill 范围
+- 外部数据库不是记忆真相源；仅支持由 Markdown 重建的派生检索侧车
 
 ## License
 

@@ -23,8 +23,14 @@ inside the markdown files.
 - `scripts/` — deterministic helpers for token-frugal memory infrastructure:
   `inventory-memory.sh` prints a compact live inventory, `build-index.sh` creates
   `.curator-index.json`, `check-index.sh` strictly enforces note/MEMORY.md/JSON content
-  consistency, `route-memory.sh` selects the top relevant notes for Chinese or English queries,
-  and `mark-curated.sh` records the baseline only after the strict gate passes.
+  consistency, `governance-check.sh` validates lifecycle metadata, `route-memory.sh` selects
+  `preflight-memory.sh` blocks unreviewed duplicate/conflicting candidate notes,
+  the top relevant notes for Chinese or English queries, `memory_search.py` maintains the
+  disposable FTS5/JSON-vector sidecar, `memory_benchmark.py` compares retrieval adapters, and
+  `memory_metadata.py` / `memory_registry.py` apply explicit governance manifests and rebuild
+  the human registry, while `mark-curated.sh` records the baseline only after the strict gate passes.
+- `poc/tencentdb-agent-memory/` — pinned, isolated TencentDB Agent Memory evaluation assets.
+  POC checkouts, dependencies, data, and logs live only under ignored `.tmp/`.
 - `hooks/` — deterministic health detector plus legacy Claude Code hook adapters. Codex uses
   `detect-memory-health.sh` directly when an external reminder is desired. `on-stop.sh` and
   `on-pre-push.sh` remain compatibility adapters only; they emit a non-blocking `systemMessage`
