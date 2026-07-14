@@ -70,6 +70,9 @@ cp -r memory-curator <your-project>/.codex/skills/memory-curator
 
 ## 索引与路由
 
+完整的缓存分层、读取/写入时序、失效语义和设计边界见
+[Memory 缓存与检索架构](docs/memory-cache-architecture.md)。
+
 `.curator-index.json` 是可重建的机器索引,用于减少 token 占用。它不替代 note 文件和 `MEMORY.md`,只负责快速召回:
 
 ```bash
@@ -191,6 +194,8 @@ CURATOR_MEMORY_DIR=<memory_dir> ./scripts/mark-curated.sh
 ```text
 memory-curator/
 ├── SKILL.md                      # 主流程(渐进式披露,frontmatter 常驻上下文)
+├── docs/
+│   └── memory-cache-architecture.md # 缓存分层、失效与重建原理
 ├── references/
 │   └── judgment-matrix.md        # 详细判据矩阵 + 可复用脚本(按需加载)
 ├── scripts/
