@@ -1,0 +1,36 @@
+{
+  "name": "memory-curator",
+  "version": "0.1.0",
+  "description": "Curate, route, and validate file-based agent memory with explicit safety gates.",
+  "author": {
+    "name": "ghyghoo8",
+    "url": "https://github.com/ghyghoo8"
+  },
+  "homepage": "https://github.com/ghyghoo8/memory-curator#readme",
+  "repository": "https://github.com/ghyghoo8/memory-curator",
+  "license": "MIT",
+  "keywords": [
+    "memory",
+    "curation",
+    "agent-memory",
+    "codex"
+  ],
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "Memory Curator",
+    "shortDescription": "Keep file-based agent memory accurate and lean",
+    "longDescription": "Route, inspect, curate, and validate file-based agent memory with explicit approval for destructive changes.",
+    "developerName": "ghyghoo8",
+    "category": "Productivity",
+    "capabilities": [
+      "Read",
+      "Write"
+    ],
+    "websiteURL": "https://github.com/ghyghoo8/memory-curator",
+    "defaultPrompt": [
+      "Check this project's memory health and route the relevant notes.",
+      "Audit this memory library and propose safe cleanup actions.",
+      "Curate stale or conflicting memory after showing me the change list."
+    ]
+  }
+}

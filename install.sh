@@ -1,14 +1,20 @@
 #!/usr/bin/env bash
-# memory-curator 安装脚本：软链 Codex skill。
+# memory-curator 兼容安装脚本：软链插件内的 Codex skill。
 # 用法：
 #   ./install.sh                       链接到 ${CODEX_HOME:-~/.codex}/skills/（全局）
 #   ./install.sh --project             链接到 ./.codex/skills/（当前项目）
 #   ./install.sh --with-claude-hooks   兼容模式：额外注册 Claude Code hooks
 set -euo pipefail
 
-SRC="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+SRC="$REPO_ROOT/plugins/memory-curator/skills/memory-curator"
 NAME="memory-curator"
 CODEX_HOME="${CODEX_HOME:-$HOME/.codex}"
+
+if [[ ! -r "$SRC/SKILL.md" ]]; then
+  echo "❌ 插件内 skill 不完整: $SRC/SKILL.md" >&2
+  exit 1
+fi
 
 PROJECT=0; WITH_CLAUDE_HOOKS=0
 for arg in "$@"; do
