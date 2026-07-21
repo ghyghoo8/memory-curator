@@ -1,7 +1,7 @@
 # memory-curator
 
-> 文件式 AI 记忆库的策展与清理 skill —— 让 Codex 的项目记忆保持精简、无矛盾、无死信息。
-> A Codex skill to curate and prune file-based agent memory.
+> 文件式 AI 记忆库的策展与清理 Codex plugin —— 让项目记忆保持精简、无矛盾、无死信息。
+> A Codex plugin with a bundled skill for curating and pruning file-based agent memory.
 
 ## 为什么需要它
 
@@ -32,7 +32,25 @@
 
 ## 安装
 
-### 方式一:软链(推荐,仓库更新即生效)
+### 方式一：Codex 原生 plugin marketplace（推荐）
+
+从 GitHub 注册本仓库并安装插件：
+
+```bash
+codex plugin marketplace add ghyghoo8/memory-curator
+codex plugin add memory-curator@memory-curator
+```
+
+本地开发或检出后验证时，也可以直接注册仓库目录：
+
+```bash
+codex plugin marketplace add /absolute/path/to/memory-curator
+codex plugin add memory-curator@memory-curator
+```
+
+可用 `codex plugin marketplace list` 和 `codex plugin list` 检查解析结果。安装或更新后请新建 Codex 任务，使新 skill 与工具上下文生效。
+
+### 方式二：旧版 skill 软链（兼容）
 
 ```bash
 git clone https://github.com/ghyghoo8/memory-curator.git
@@ -40,16 +58,18 @@ git clone https://github.com/ghyghoo8/memory-curator.git
 ./memory-curator/install.sh --project  # 链接到 ./.codex/skills/（当前项目）
 ```
 
-`SKILL.md` 必须在 `${CODEX_HOME:-~/.codex}/skills/memory-curator/SKILL.md`(或项目 `.codex/skills/` 下同构)。
+兼容脚本会把插件中的规范 skill 目录软链到 `${CODEX_HOME:-~/.codex}/skills/memory-curator`（或项目 `.codex/skills/` 下同构）。
 
-### 方式二:手动复制
+### 方式三：手动复制 skill（兼容）
 
 ```bash
 # 全局
-cp -r memory-curator "${CODEX_HOME:-$HOME/.codex}/skills/memory-curator"
+cp -r memory-curator/plugins/memory-curator/skills/memory-curator \
+  "${CODEX_HOME:-$HOME/.codex}/skills/memory-curator"
 
 # 或项目级
-cp -r memory-curator <your-project>/.codex/skills/memory-curator
+cp -r memory-curator/plugins/memory-curator/skills/memory-curator \
+  <your-project>/.codex/skills/memory-curator
 ```
 
 ## 用法
@@ -193,30 +213,18 @@ CURATOR_MEMORY_DIR=<memory_dir> ./scripts/mark-curated.sh
 
 ```text
 memory-curator/
-├── SKILL.md                      # 主流程(渐进式披露,frontmatter 常驻上下文)
-├── docs/
-│   └── memory-cache-architecture.md # 缓存分层、失效与重建原理
-├── references/
-│   └── judgment-matrix.md        # 详细判据矩阵 + 可复用脚本(按需加载)
-├── scripts/
-│   ├── memory_index.py           # build/check/route 实现
-│   ├── inventory-memory.sh       # 紧凑盘点，不把全部正文塞进上下文
-│   ├── build-index.sh            # 生成 .curator-index.json
-│   ├── check-index.sh            # 校验文件/MEMORY.md/JSON 三方一致
-│   ├── governance-check.sh       # 校验分层、时效、证据和生命周期
-│   ├── preflight-memory.sh       # 新 note 写入前重复/潜在冲突门禁
-│   ├── memory_metadata.py        # 显式 manifest 批量迁移治理元数据
-│   ├── memory_registry.py        # 按 L3/L2/L1 与 inactive 重建 MEMORY.md
-│   ├── route-memory.sh           # 中英低 token 记忆路由
-│   ├── memory_search.py          # FTS5/JSON-vector/Python-cosine/RRF 派生检索库
-│   ├── memory_benchmark.py       # 多 adapter 统一召回基准
-│   └── mark-curated.sh           # strict check 通过后安全更新策展基准
-├── hooks/
-│   ├── curator-lib.sh            # 共享库:定位记忆库 + 状态文件读写
-│   ├── detect-memory-health.sh   # 探测器:确定性健康信号
-│   ├── on-stop.sh                # Claude Code 兼容触发器:Stop
-│   └── on-pre-push.sh            # Claude Code 兼容触发器:PreToolUse/Bash git push
-├── install.sh                    # 一键安装 Codex skill,可选 Claude hook 兼容
+├── .agents/plugins/marketplace.json       # Codex repo marketplace 入口
+├── plugins/memory-curator/
+│   ├── .codex-plugin/plugin.json          # Codex plugin manifest
+│   └── skills/memory-curator/
+│       ├── SKILL.md                       # 主流程与 skill frontmatter
+│       ├── references/judgment-matrix.md  # 详细判据矩阵
+│       ├── scripts/                       # 索引、路由、治理与检索工具
+│       ├── hooks/                         # 健康探测及旧 Claude 兼容适配器
+│       ├── docs/                          # 架构文档
+│       └── poc/                           # 隔离的可选检索 POC
+├── SKILL.md / scripts / references / ...  # 指向规范 skill 的旧路径兼容软链
+├── install.sh                             # 旧版 skill 软链安装器
 ├── tests/                        # fixture + 回归验证
 ├── evals/                        # skill 行为评测 + 触发/不触发查询集
 ├── README.md
