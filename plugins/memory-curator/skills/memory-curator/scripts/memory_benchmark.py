@@ -24,6 +24,17 @@ import memory_search
 
 SearchFn = Callable[[dict[str, Any], int], dict[str, Any]]
 
+# Keep the legacy field matcher and its prebuilt-index boundary unchanged.
+# These quality-benchmark timings are comparable only within the same scope;
+# tests/benchmark_memory_performance.py supplies matched end-to-end timings.
+ADAPTER_CONTRACTS = {
+    "curator-keyword": ("field_match", "retrieval_kernel_prebuilt_index"),
+    "curator-fts": ("sqlite_fts5_bm25", "library_query_including_source_validation"),
+    "curator-vector": ("python_json_cosine", "library_query_including_source_validation"),
+    "curator-hybrid": ("fts5_vector_rrf", "library_query_including_source_validation"),
+    "tdai-v036": ("external_adapter", "external_process_end_to_end"),
+}
+
 
 def adapter_result(
     files: list[str],
@@ -117,6 +128,9 @@ def run_adapter(
 
     return {
         "adapter": name,
+        "algorithm": ADAPTER_CONTRACTS.get(name, ("unspecified", "adapter_call"))[0],
+        "timing_scope": ADAPTER_CONTRACTS.get(name, ("unspecified", "adapter_call"))[1],
+        "percentile_method": "legacy_rounded_index",
         "eligible_for_strategy_score": eligible,
         "metrics": evaluate_rankings(cases, outputs, k=k),
         "latency_ms": {
@@ -134,24 +148,25 @@ def add_injection_metrics(report: dict[str, Any], memory_dir: Path) -> None:
     traceable = 0
     evidence_total = 0
     evidence_resolved = 0
+    evidence_status = {"local_resolved": 0, "remote_unverified": 0, "missing": 0}
     notes = {
         str(note["file"]): note
         for note in memory_index.build_index(memory_dir).get("notes", [])
     }
 
-    def evidence_exists(reference: str) -> bool:
+    def evidence_resolution(reference: str) -> str:
         if reference.startswith(("https://", "http://")):
-            return True
+            return "remote_unverified"
         raw_path = reference.split("#", 1)[0]
         if not raw_path:
-            return False
+            return "missing"
         path = Path(raw_path).expanduser()
         if path.is_absolute():
-            return path.exists()
+            return "local_resolved" if path.is_file() else "missing"
         candidates = [memory_dir / path, memory_dir.parent / path]
         if memory_dir.parent.name == ".codex":
             candidates.append(memory_dir.parent.parent / path)
-        return any(candidate.exists() for candidate in candidates)
+        return "local_resolved" if any(candidate.is_file() for candidate in candidates) else "missing"
     for row in report.get("cases", []):
         characters = 0
         for filename in row.get("files", []):
@@ -165,18 +180,23 @@ def add_injection_metrics(report: dict[str, Any], memory_dir: Path) -> None:
             characters += len(path.read_text(encoding="utf-8"))
             for reference in notes.get(filename, {}).get("evidence_refs", []):
                 evidence_total += 1
-                evidence_resolved += int(evidence_exists(str(reference)))
+                status = evidence_resolution(str(reference))
+                evidence_status[status] += 1
+                evidence_resolved += int(status == "local_resolved")
         character_counts.append(float(characters))
     average = sum(character_counts) / len(character_counts) if character_counts else 0.0
     report["injection"] = {
         "average_characters_at_k": average,
         "p95_characters_at_k": _percentile(character_counts, 0.95),
         "estimated_average_tokens_at_k": average / 4.0,
+        "token_estimate_method": "characters_divided_by_4_not_a_token_budget",
+        "percentile_method": "legacy_rounded_index",
         "note_path_traceability_rate": traceable / returned if returned else 1.0,
         "declared_evidence_ref_resolution_rate": (
             evidence_resolved / evidence_total if evidence_total else None
         ),
         "declared_evidence_refs": evidence_total,
+        "evidence_reference_status": evidence_status,
     }
 
 
@@ -306,8 +326,8 @@ def main(argv: list[str] | None = None) -> int:
     for name in [item.strip() for item in args.adapters.split(",") if item.strip()]:
         if name == "curator-keyword":
             search_fn = lexical_adapter(memory_dir)
-        elif name in {"curator-vector", "curator-hybrid"}:
-            strategy = name.split("-", 1)[1]
+        elif name in {"curator-fts", "curator-vector", "curator-hybrid"}:
+            strategy = "keyword" if name == "curator-fts" else name.split("-", 1)[1]
             search_fn = sqlite_adapter(
                 memory_dir,
                 db_path,
@@ -334,6 +354,7 @@ def main(argv: list[str] | None = None) -> int:
         "cases": len(cases),
         "k": args.k,
         "reports": reports,
+        "timing_comparison": "compare only matching timing_scope; use the performance harness for release budgets",
     }
     rendered = json.dumps(output, ensure_ascii=False, indent=2) + "\n"
     if args.output:

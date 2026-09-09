@@ -1,0 +1,8 @@
+{
+  "snapshot_schema_version": 1,
+  "injected_content": "# Completion marker must not hide overdue memory\nRun strict, then governance; write curation keys only if both pass. Any failure leaves .curator-state byte-identical. Success preserves last_notify_epoch. Preserve the incident chain: strict-only stamping made a governance-failing overdue note disappear from recall behind a falsely fresh detector baseline. A completion stamp proves these gates passed, not semantic truth.\n",
+  "source_files": [
+    "cases/ue-mark-baseline/source-memory.md",
+    "cases/ue-mark-baseline/environment.md"
+  ]
+}

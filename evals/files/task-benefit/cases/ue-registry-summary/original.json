@@ -1,0 +1,7 @@
+{
+  "snapshot_schema_version": 1,
+  "injected_content": "# Registry fallback incident\nWithout a description, a fallback once returned the full registry line. Each rebuild wrapped that line in another link prefix, making the index grow repeatedly. Extract only the meaningful text after the existing link/separator while preserving the user's label. Do not discard legacy registry text: in some libraries it is the only copy of an operational exception. The second unchanged rebuild must be byte-identical and report changed=false.\n",
+  "source_files": [
+    "cases/ue-registry-summary/source-memory.md"
+  ]
+}

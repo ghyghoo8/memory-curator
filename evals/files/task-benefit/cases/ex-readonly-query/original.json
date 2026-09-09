@@ -1,0 +1,7 @@
+{
+  "snapshot_schema_version": 1,
+  "injected_content": "# Query immutability contract\nThe report command must never create a missing database, WAL, SHM or a truncated-name file. Use a properly URI-encoded absolute file path with mode=ro&immutable=1. Query failure must leave the directory file set and existing database bytes unchanged.\n\n# Importer contract\nThe separate importer intentionally creates new databases; its open mode is not appropriate for queries.\n",
+  "source_files": [
+    "cases/ex-readonly-query/source-memory.md"
+  ]
+}

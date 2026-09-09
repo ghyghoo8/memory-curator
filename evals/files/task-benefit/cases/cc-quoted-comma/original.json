@@ -1,0 +1,7 @@
+{
+  "snapshot_schema_version": 1,
+  "injected_content": "# Unquoted list boundary\nA comma outside quotes separates values in a flow list. Accept the existing unquoted [AGENTS.md, docs/a.md] form.\n\n# Quoted value boundary\nA comma inside quotes is literal content, not a separator; the writer emits JSON-style quoted strings/escapes. A multiline scalar list has the same semantics. Complex nested objects are unsupported and must fail clearly before writing.\n",
+  "source_files": [
+    "cases/cc-quoted-comma/source-memory.md"
+  ]
+}

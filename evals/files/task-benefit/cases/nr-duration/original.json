@@ -1,0 +1,7 @@
+{
+  "snapshot_schema_version": 1,
+  "injected_content": "# Unrelated telemetry convention\nThe fictional Beacon telemetry API represents durations as integer milliseconds and wraps scalar values in {\"value\": ..., \"unit\": \"ms\"}. Its HTTP endpoints need request IDs. This is a Beacon API contract only.\n",
+  "source_files": [
+    "cases/nr-duration/source-memory.md"
+  ]
+}

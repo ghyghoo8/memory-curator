@@ -1,0 +1,8 @@
+{
+  "snapshot_schema_version": 1,
+  "injected_content": "# Batch backup rules, separated by condition\nWith an explicitly enabled configured backup: network errors, timeout and 5xx may retry the entire [A,B,C] batch once. A 4xx or model/revision mismatch fails without fallback. Discard partial output from failed attempts; no mixed provider results and no credential logging. These conditions are complementary, not contradictory.\n",
+  "source_files": [
+    "cases/cc-batch-retry/source-memory.md",
+    "cases/cc-batch-retry/environment.md"
+  ]
+}

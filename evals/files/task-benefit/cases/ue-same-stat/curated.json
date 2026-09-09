@@ -1,0 +1,8 @@
+{
+  "snapshot_schema_version": 1,
+  "injected_content": "# Freshness regression to preserve\nEqual-byte-length edits plus os.utime restoring st_mtime_ns can evade a size/mtime shortcut. Read full source content and compare the content hash on each query to preserve rejection of any changed content. A regression test must alter content while restoring both stat fields and still reject the old cache. Reduce duplicate reads/parsing without introducing TTL, watchers or stat-only acceptance.\n",
+  "source_files": [
+    "cases/ue-same-stat/source-memory.md",
+    "cases/ue-same-stat/environment.md"
+  ]
+}

@@ -15,12 +15,24 @@ from datetime import date
 from pathlib import Path
 from typing import Any
 
+SCRIPT_DIR = Path(__file__).resolve().parent
+if str(SCRIPT_DIR) not in sys.path:
+    sys.path.insert(0, str(SCRIPT_DIR))
+from memory_frontmatter import parse_frontmatter, parse_scalar
+
 
 INDEX_FILE = ".curator-index.json"
 MEMORY_FILE = "MEMORY.md"
-SCHEMA_VERSION = 3
+SCHEMA_VERSION = 4
 WORD_RE = re.compile(r"[A-Za-z0-9_./-]+")
 CJK_RE = re.compile(r"[\u3400-\u4dbf\u4e00-\u9fff]+")
+TOKEN_SEGMENT_RE = re.compile(r"[._/-]+")
+KEYWORD_STOP_WORDS = frozenset({
+    "the", "and", "for", "with", "this", "that", "from", "memory", "note",
+    "should", "when", "how", "why", "一下", "内容", "当前", "检查", "清理",
+    "相关", "维护", "规则", "策略", "处理", "项目", "项目规则", "记忆",
+    "记忆库", "这个",
+})
 INDEX_LINK_RE = re.compile(r"^\s*-\s+\[[^]]+\]\(([^)]+\.md)\)")
 WIKI_LINK_RE = re.compile(r"\[\[([^]|#]+)(?:[|#][^]]*)?\]\]")
 MIN_ROUTE_SCORE = 5
@@ -115,64 +127,6 @@ def find_memory_dir(start: str | None) -> Path:
     die("memory directory not found; pass --memory-dir or set CURATOR_MEMORY_DIR")
 
 
-def parse_scalar(value: str) -> Any:
-    value = value.strip()
-    if value == "":
-        return ""
-    if value in {"[]", "[ ]"}:
-        return []
-    if value.startswith("[") and value.endswith("]"):
-        inner = value[1:-1].strip()
-        if not inner:
-            return []
-        return [item.strip().strip("\"'") for item in inner.split(",") if item.strip()]
-    if value.lower() in {"null", "none"}:
-        return None
-    return value.strip("\"'")
-
-
-def parse_frontmatter(text: str) -> tuple[dict[str, Any], str]:
-    if not text.startswith("---\n"):
-        return {}, text
-    end = text.find("\n---", 4)
-    if end == -1:
-        return {}, text
-
-    raw = text[4:end].splitlines()
-    body = text[end + 4 :].lstrip("\n")
-    data: dict[str, Any] = {}
-    current_map: dict[str, Any] | None = None
-    current_list_key: str | None = None
-
-    for line in raw:
-        if not line.strip() or line.lstrip().startswith("#"):
-            continue
-        if line.startswith("  - ") and current_map is not None and current_list_key:
-            current_map.setdefault(current_list_key, []).append(parse_scalar(line[4:]))
-            continue
-        if line.startswith("- ") and current_list_key:
-            data.setdefault(current_list_key, []).append(parse_scalar(line[2:]))
-            continue
-        if line.startswith("  ") and current_map is not None and ":" in line:
-            key, value = line.strip().split(":", 1)
-            parsed = parse_scalar(value)
-            current_map[key] = parsed
-            current_list_key = key if parsed == [] else None
-            continue
-        if ":" not in line:
-            continue
-        key, value = line.split(":", 1)
-        parsed = parse_scalar(value)
-        data[key] = parsed
-        current_map = data[key] if isinstance(data[key], dict) else None
-        current_list_key = key if parsed == [] else None
-        if value.strip() == "":
-            data[key] = {}
-            current_map = data[key]
-
-    return data, body
-
-
 def as_list(value: Any) -> list[str]:
     if value is None or value == "":
         return []
@@ -186,36 +140,7 @@ def slug_from_file(path: Path) -> str:
 
 
 def extract_keywords(*parts: str, max_tokens: int | None = None) -> list[str]:
-    stop = {
-        "the",
-        "and",
-        "for",
-        "with",
-        "this",
-        "that",
-        "from",
-        "memory",
-        "note",
-        "should",
-        "when",
-        "how",
-        "why",
-        "一下",
-        "内容",
-        "当前",
-        "检查",
-        "清理",
-        "相关",
-        "维护",
-        "规则",
-        "策略",
-        "处理",
-        "项目",
-        "项目规则",
-        "记忆",
-        "记忆库",
-        "这个",
-    }
+    stop = KEYWORD_STOP_WORDS
     seen: set[str] = set()
     out: list[str] = []
 
@@ -229,7 +154,7 @@ def extract_keywords(*parts: str, max_tokens: int | None = None) -> list[str]:
     for part in parts:
         for token in WORD_RE.findall(part.lower()):
             add(token)
-            for segment in re.split(r"[._/-]+", token):
+            for segment in TOKEN_SEGMENT_RE.split(token):
                 add(segment, min_length=2)
                 if segment.endswith("s") and len(segment) > 4:
                     add(segment[:-1], min_length=2)
@@ -270,7 +195,12 @@ def summary_for_note(path: Path, description: str, index_links: dict[str, str], 
     if description:
         return description
     if index_links.get(path.name):
-        return index_links[path.name]
+        line = index_links[path.name]
+        match = INDEX_LINK_RE.match(line)
+        if match:
+            summary = re.sub(r"^\s*[—-]\s*", "", line[match.end():]).strip()
+            if summary:
+                return summary
     for line in body.splitlines():
         line = line.strip()
         if line:
@@ -285,42 +215,69 @@ def build_index(memory_dir: Path) -> dict[str, Any]:
         if path.name == MEMORY_FILE:
             continue
         text = path.read_text(encoding="utf-8")
-        frontmatter, body = parse_frontmatter(text)
+        try:
+            frontmatter, body = parse_frontmatter(text)
+        except ValueError as exc:
+            raise ValueError(f"{path.name}: {exc}") from exc
         metadata = frontmatter.get("metadata") if isinstance(frontmatter.get("metadata"), dict) else {}
+        # Presence, including explicit null/[], wins over the legacy top level.
+        fields = {**frontmatter, **metadata}
+
+        def string_field(key: str, default: str = "") -> str:
+            value = fields.get(key, default)
+            if value is None:
+                return ""
+            if not isinstance(value, str):
+                raise ValueError(f"{path.name}: {key} must be a string or null")
+            return value
+
+        def nullable_field(key: str) -> str | None:
+            value = fields.get(key)
+            if value is not None and (not isinstance(value, str) or not value.strip()):
+                raise ValueError(f"{path.name}: {key} must be a nonempty string or null")
+            return value
+
+        def list_field(key: str) -> list[str]:
+            value = fields.get(key)
+            if value is not None and not (
+                isinstance(value, str)
+                or isinstance(value, list) and all(isinstance(item, str) for item in value)
+            ):
+                raise ValueError(f"{path.name}: {key} must be a string list or null")
+            return as_list(value)
+
         description = str(frontmatter.get("description") or "").strip()
         summary = summary_for_note(path, description, index_links, body)
         name = str(frontmatter.get("name") or slug_from_file(path))
-        scope = as_list(metadata.get("scope") or frontmatter.get("scope"))
-        entities = as_list(metadata.get("entities") or frontmatter.get("entities"))
-        if not scope:
+        scope = list_field("scope")
+        entities = list_field("entities")
+        if "scope" not in fields:
             scope = extract_keywords(path.stem, summary, max_tokens=6)
-        if not entities:
+        if "entities" not in fields:
             entities = extract_keywords(summary, body, max_tokens=10)
-        metadata_links = as_list(metadata.get("links") or frontmatter.get("links"))
+        metadata_links = list_field("links")
         wiki_links = [match.strip() for match in WIKI_LINK_RE.findall(body) if match.strip()]
         links = list(dict.fromkeys([*metadata_links, *wiki_links]))
         stat = path.stat()
         note = Note(
             file=path.name,
             name=name,
-            type=str(metadata.get("type") or frontmatter.get("type") or "project"),
-            layer=str(metadata.get("layer") or frontmatter.get("layer") or ""),
-            domain=str(metadata.get("domain") or frontmatter.get("domain") or ""),
-            status=str(metadata.get("status") or frontmatter.get("status") or "active"),
-            stability=str(metadata.get("stability") or frontmatter.get("stability") or "unknown"),
-            freshness=str(metadata.get("freshness") or frontmatter.get("freshness") or "unknown"),
-            risk=str(metadata.get("risk") or frontmatter.get("risk") or "normal"),
+            type=string_field("type", "project"),
+            layer=string_field("layer"),
+            domain=string_field("domain"),
+            status=string_field("status", "active"),
+            stability=string_field("stability", "unknown"),
+            freshness=string_field("freshness", "unknown"),
+            risk=string_field("risk", "normal"),
             summary=summary,
             scope=scope,
             entities=entities,
             updated_at=date.fromtimestamp(stat.st_mtime).isoformat(),
-            review_after=metadata.get("review_after") or frontmatter.get("review_after"),
-            supersedes=as_list(metadata.get("supersedes") or frontmatter.get("supersedes")),
-            superseded_by=metadata.get("superseded_by") or frontmatter.get("superseded_by"),
+            review_after=nullable_field("review_after"),
+            supersedes=list_field("supersedes"),
+            superseded_by=nullable_field("superseded_by"),
             links=links,
-            evidence_refs=as_list(
-                metadata.get("evidence_refs") or frontmatter.get("evidence_refs")
-            ),
+            evidence_refs=list_field("evidence_refs"),
             content_hash=hashlib.sha256(text.encode("utf-8")).hexdigest(),
         )
         notes.append(note)
@@ -383,9 +340,11 @@ def write_json_atomic(output: Path, value: dict[str, Any]) -> None:
         temporary.unlink(missing_ok=True)
 
 
-def check_index(memory_dir: Path) -> tuple[list[str], dict[str, Any]]:
+def check_index(
+    memory_dir: Path, *, current: dict[str, Any] | None = None
+) -> tuple[list[str], dict[str, Any]]:
     issues: list[str] = []
-    current = build_index(memory_dir)
+    current = build_index(memory_dir) if current is None else current
     index_path = memory_dir / INDEX_FILE
     if not index_path.exists():
         issues.append(f"machine index missing: {INDEX_FILE}")
@@ -454,11 +413,12 @@ def check_index(memory_dir: Path) -> tuple[list[str], dict[str, Any]]:
     if stale_files:
         issues.append(f"machine index stale for notes: {stale_files}")
 
+    note_file_set, memory_link_set = set(note_files), set(memory_links)
     for filename in memory_links:
-        if filename not in note_files:
+        if filename not in note_file_set:
             issues.append(f"dead link: {filename}")
     for filename in note_files:
-        if filename not in memory_links:
+        if filename not in memory_link_set:
             issues.append(f"orphan file: {filename}")
 
     seen_names: set[str] = set()
@@ -559,6 +519,9 @@ def command_governance_check(args: argparse.Namespace) -> int:
 
 def command_inventory(args: argparse.Namespace) -> int:
     memory_dir = Path(args.memory_dir).resolve() if args.memory_dir else find_memory_dir(args.cwd)
+    if getattr(args, "health", False):
+        print(json.dumps(health_summary(memory_dir), ensure_ascii=False))
+        return 0
     current = build_index(memory_dir)
     notes = current.get("notes", [])
     total_bytes = sum(
@@ -578,6 +541,23 @@ def command_inventory(args: argparse.Namespace) -> int:
             f" {note.get('summary')}"
         )
     return 0
+
+
+def health_summary(memory_dir: Path, *, today: date | None = None) -> dict[str, Any]:
+    """Reuse a single live parse for cache consistency and active review deadlines."""
+    current = build_index(memory_dir)
+    issues = check_index(memory_dir, current=current)[0] if (memory_dir / INDEX_FILE).exists() else []
+    overdue = []
+    for note in current["notes"]:
+        if note.get("status") != "active" or not note.get("review_after"):
+            continue
+        try:
+            deadline = date.fromisoformat(note["review_after"])
+        except ValueError:
+            continue  # Invalid metadata is diagnosed by the explicit governance gate.
+        if deadline < (today or date.today()):
+            overdue.append(note["file"])
+    return {"index_issues": issues, "overdue_files": overdue}
 
 
 def score_note(note: dict[str, Any], query_tokens: set[str]) -> int:
@@ -620,7 +600,7 @@ def is_default_routable(
     include_inactive: bool = False,
     include_overdue: bool = False,
 ) -> bool:
-    if not include_inactive and note.get("status") in INACTIVE_STATUSES:
+    if not include_inactive and note.get("status") != "active":
         return False
     if not include_overdue and note.get("status") == "active" and note.get("review_after"):
         try:
@@ -643,6 +623,24 @@ def _index_corpus_hash(index: dict[str, Any]) -> str:
     return hashlib.sha256(json.dumps(payload, sort_keys=True).encode("utf-8")).hexdigest()
 
 
+def current_corpus_fingerprint(memory_dir: Path) -> str:
+    """Hash all current sources without parsing metadata or extracting keywords.
+
+    Notes retain read_text's universal-newline normalization; MEMORY.md retains
+    the original raw-byte hash. Never substitute stat/mtime for content reads.
+    """
+    registry = memory_dir / MEMORY_FILE
+    return _index_corpus_hash({
+        "source_hashes": {MEMORY_FILE: hashlib.sha256(registry.read_bytes()).hexdigest()
+                          if registry.exists() else None},
+        "notes": [
+            {"file": path.name,
+             "content_hash": hashlib.sha256(path.read_text(encoding="utf-8").encode("utf-8")).hexdigest()}
+            for path in sorted(memory_dir.glob("*.md")) if path.name != MEMORY_FILE
+        ],
+    })
+
+
 def preflight_candidate(
     memory_dir: Path,
     candidate_path: Path,
@@ -658,6 +656,7 @@ def preflight_candidate(
     candidate_negative = any(marker in candidate_text.lower() for marker in NEGATION_MARKERS)
     index = build_index(memory_dir)
     exact_duplicates: list[str] = []
+    review_reasons: dict[str, list[str]] = {}
     ranked: list[dict[str, Any]] = []
     for note in index.get("notes", []):
         path = (memory_dir / str(note["file"])).resolve()
@@ -670,17 +669,24 @@ def preflight_candidate(
         tokens = set(extract_keywords(text, max_tokens=500))
         union = candidate_tokens | tokens
         similarity = len(candidate_tokens & tokens) / len(union) if union else 0.0
+        reasons = []
+        if content_hash == candidate_hash:
+            reasons.append("exact_duplicate")
+        if similarity >= similarity_threshold:
+            reasons.append("high_similarity")
+        note_negative = any(marker in text.lower() for marker in NEGATION_MARKERS)
+        potential_conflict = similarity >= similarity_threshold and candidate_negative != note_negative
+        if potential_conflict:
+            reasons.append("potential_conflict")
+        if reasons:
+            review_reasons[str(note["file"])] = reasons
         if similarity <= 0:
             continue
-        note_negative = any(marker in text.lower() for marker in NEGATION_MARKERS)
         ranked.append(
             {
                 "file": str(note["file"]),
                 "similarity": round(similarity, 6),
-                "potential_conflict": (
-                    similarity >= similarity_threshold
-                    and candidate_negative != note_negative
-                ),
+                "potential_conflict": potential_conflict,
                 "status": note.get("status"),
                 "summary": note.get("summary"),
             }
@@ -689,13 +695,16 @@ def preflight_candidate(
     top = ranked[:limit]
     conflicts = [row for row in ranked if row["potential_conflict"]]
     return {
+        "assessment_scope": "heuristic",
         "candidate": str(candidate_path),
         "candidate_hash": candidate_hash,
         "corpus_hash": _index_corpus_hash(index),
         "exact_duplicates": exact_duplicates,
         "similar_candidates": top,
         "potential_conflicts": conflicts,
-        "blocking": bool(exact_duplicates or conflicts),
+        "review_required_files": sorted(review_reasons),
+        "review_reasons": review_reasons,
+        "blocking": bool(review_reasons),
     }
 
 
@@ -723,23 +732,27 @@ def command_route(args: argparse.Namespace) -> int:
     memory_dir = Path(args.memory_dir).resolve() if args.memory_dir else find_memory_dir(args.cwd)
     index_path = memory_dir / INDEX_FILE
     if index_path.exists() and not args.rebuild:
-        issues, _ = check_index(memory_dir)
+        issues, index = check_index(memory_dir)
         if issues:
             die(
                 "machine index is stale or invalid: "
                 + "; ".join(issues)
                 + "; rebuild it or pass --rebuild"
             )
-    index = load_index(memory_dir, rebuild=args.rebuild)
+    else:
+        index = load_index(memory_dir, rebuild=args.rebuild)
     query = " ".join(args.query)
     query_tokens = set(extract_keywords(query))
     if not query_tokens:
         die("route query is empty")
 
+    # One request uses a consistent review date, including across midnight.
+    today = date.today()
     ranked: list[tuple[int, dict[str, Any]]] = []
     for note in index.get("notes", []):
         if not is_default_routable(
             note,
+            today=today,
             include_inactive=args.include_inactive,
             include_overdue=args.include_overdue,
         ):
@@ -799,6 +812,7 @@ def main(argv: list[str] | None = None) -> int:
 
     inventory = sub.add_parser("inventory", help="print a compact current-memory inventory")
     add_common(inventory)
+    inventory.add_argument("--health", action="store_true", help="emit cache/deadline health JSON")
     inventory.set_defaults(func=command_inventory)
 
     route = sub.add_parser("route", help="select relevant memories for a query")

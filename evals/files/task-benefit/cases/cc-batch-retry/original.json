@@ -1,0 +1,7 @@
+{
+  "snapshot_schema_version": 1,
+  "injected_content": "# Allowed backup condition\nWhen the configured backup is explicitly enabled, a network error, timeout or 5xx retries the whole original batch once on that backup. Never combine vectors from different attempts.\n\n# Do not fallback\nHTTP 4xx and provider/model/revision mismatch are hard errors. Never send those requests to the backup. Never log credentials.\n",
+  "source_files": [
+    "cases/cc-batch-retry/source-memory.md"
+  ]
+}

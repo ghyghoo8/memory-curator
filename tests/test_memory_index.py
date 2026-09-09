@@ -4,6 +4,8 @@
 from __future__ import annotations
 
 import importlib.util
+import contextlib
+import io
 import json
 import os
 import subprocess
@@ -25,6 +27,28 @@ SPEC.loader.exec_module(memory_index)
 
 
 class KeywordRoutingTests(unittest.TestCase):
+    def test_route_uses_one_review_date_per_request_and_refreshes_next_request(self) -> None:
+        notes = [
+            {"file": filename, "name": filename, "summary": "sandbox approval",
+             "scope": ["sandbox"], "status": "active", "review_after": "2026-09-08"}
+            for filename in ("alpha.md", "beta.md")
+        ]
+        with tempfile.TemporaryDirectory() as tmp:
+            (Path(tmp) / memory_index.INDEX_FILE).touch()
+            with mock.patch.object(memory_index, "check_index", return_value=([], {"notes": notes})), \
+                 mock.patch.object(memory_index, "date", wraps=date) as clock:
+                # Midnight must not split equally due notes within one result.
+                clock.today.side_effect = [date(2026, 9, 8), date(2026, 9, 9)]
+                for expected in (["alpha.md", "beta.md"], []):
+                    with contextlib.redirect_stdout(io.StringIO()) as output:
+                        self.assertEqual(memory_index.main([
+                            "route", "--memory-dir", tmp, "--json", "sandbox",
+                        ]), 0)
+                    self.assertEqual(
+                        [note["file"] for note in json.loads(output.getvalue())["selected"]],
+                        expected,
+                    )
+
     def test_default_routing_excludes_overdue_active_note(self) -> None:
         note = {
             "status": "active",
@@ -226,6 +250,21 @@ metadata:
 
 
 class StrictIndexTests(unittest.TestCase):
+    def test_old_schema_rejected_even_when_source_hashes_match(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            directory = self.create_memory(Path(tmp))
+            before = {p.name: p.read_bytes() for p in directory.glob("*.md")}
+            index = memory_index.build_index(directory)
+            index["schema_version"] = 3
+            cache = directory / memory_index.INDEX_FILE
+            cache.write_text(json.dumps(index))
+            issues, _ = memory_index.check_index(directory)
+            self.assertTrue(any("schema is stale" in issue for issue in issues))
+            memory_index.write_json_atomic(cache, memory_index.build_index(directory))
+            self.assertEqual(memory_index.check_index(directory)[0], [])
+            self.assertEqual(json.loads(cache.read_text())["schema_version"], 4)
+            self.assertEqual(before, {p.name: p.read_bytes() for p in directory.glob("*.md")})
+
     def create_memory(self, root: Path) -> Path:
         memory_dir = root / "memory"
         memory_dir.mkdir()
@@ -583,6 +622,55 @@ class MemoryDirectoryResolutionTests(unittest.TestCase):
                 resolved = memory_index.find_memory_dir(str(child))
 
             self.assertEqual(resolved, local_memory.resolve())
+
+
+class IterationContractsTests(unittest.TestCase):
+    def test_explicit_null_and_empty_values_override_legacy_and_inference(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            directory = Path(tmp)
+            (directory / "rule.md").write_text("""---
+name: rule
+description: payment deployment
+review_after: 2020-01-01
+superseded_by: obsolete
+scope: [payment]
+evidence_refs: [old.md]
+metadata:
+  status: active
+  review_after: null
+  superseded_by: null
+  evidence_refs: []
+  scope: []
+  entities: []
+---
+Payment deployment uses [[other]].
+""")
+            note = memory_index.build_index(directory)["notes"][0]
+            self.assertIsNone(note["review_after"])
+            self.assertIsNone(note["superseded_by"])
+            self.assertEqual(note["evidence_refs"], [])
+            self.assertEqual(note["scope"], [])
+            self.assertEqual(note["entities"], [])
+            self.assertEqual(note["links"], ["other"])
+            self.assertTrue(memory_index.is_default_routable(note))
+
+    def test_nonnullable_null_is_reported_without_legacy_fallback(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            directory = Path(tmp)
+            (directory / "rule.md").write_text(
+                "---\nname: rule\ndomain: legacy\nstatus: active\nmetadata:\n"
+                "  domain: null\n  status: null\n---\nRule.\n")
+            note = memory_index.build_index(directory)["notes"][0]
+            self.assertNotEqual(note["status"], "active")
+            self.assertFalse(note["domain"])
+            self.assertTrue(memory_index.check_governance(directory))
+
+    def test_parse_error_identifies_note_and_line(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            directory = Path(tmp)
+            (directory / "bad.md").write_text("---\nname: first\nname: second\n---\nBody")
+            with self.assertRaisesRegex(ValueError, r"bad.md.*line"):
+                memory_index.build_index(directory)
 
 
 if __name__ == "__main__":

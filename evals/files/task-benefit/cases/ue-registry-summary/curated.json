@@ -1,0 +1,8 @@
+{
+  "snapshot_schema_version": 1,
+  "injected_content": "# Preserve legacy summary and idempotence\nExtract `Roll back only after the reader has drained its old cursor.` after the existing link/separator, and keep label `Carefully chosen label`. Returning the whole line recursively nests a new link on every rebuild. This registry-only drain exception must survive. Rebuild twice: the second output is byte-identical and changed=false.\n",
+  "source_files": [
+    "cases/ue-registry-summary/source-memory.md",
+    "cases/ue-registry-summary/environment.md"
+  ]
+}

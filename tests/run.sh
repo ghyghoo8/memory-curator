@@ -9,6 +9,7 @@ python3 -m unittest discover -s "$ROOT/tests" -p 'test_*.py'
 
 cp -R "$ROOT/tests/fixtures/good-memory" "$TMP/good-memory"
 cp -R "$ROOT/tests/fixtures/bad-memory" "$TMP/bad-memory"
+cp -R "$ROOT/tests/fixtures/governed-memory" "$TMP/governed-memory"
 mkdir -p "$TMP/empty-memory"
 touch "$TMP/empty-memory/blank.md"
 mkdir -p "$TMP/large-memory"
@@ -24,13 +25,14 @@ printf '%s\n' "$inventory_output" | grep -q "sandbox-policy.md"
 
 "$ROOT/scripts/build-index.sh" --memory-dir "$TMP/good-memory" >/dev/null
 "$ROOT/scripts/check-index.sh" --memory-dir "$TMP/good-memory" >/dev/null
-printf 'last_notify_epoch=123\n' > "$TMP/good-memory/.curator-state"
-CURATOR_MEMORY_DIR="$TMP/good-memory" "$ROOT/scripts/mark-curated.sh" "$TMP" >/dev/null
-grep -q '^last_notify_epoch=123$' "$TMP/good-memory/.curator-state"
-grep -q '^last_curation_epoch=' "$TMP/good-memory/.curator-state"
+"$ROOT/scripts/build-index.sh" --memory-dir "$TMP/governed-memory" >/dev/null
+printf 'last_notify_epoch=123\n' > "$TMP/governed-memory/.curator-state"
+CURATOR_MEMORY_DIR="$TMP/governed-memory" "$ROOT/scripts/mark-curated.sh" "$TMP" >/dev/null
+grep -q '^last_notify_epoch=123$' "$TMP/governed-memory/.curator-state"
+grep -q '^last_curation_epoch=' "$TMP/governed-memory/.curator-state"
 
 # Replacing the only state key must work repeatedly under set -e.
-cp -R "$ROOT/tests/fixtures/good-memory" "$TMP/stamp-memory"
+cp -R "$ROOT/tests/fixtures/governed-memory" "$TMP/stamp-memory"
 "$ROOT/scripts/build-index.sh" --memory-dir "$TMP/stamp-memory" >/dev/null
 CURATOR_MEMORY_DIR="$TMP/stamp-memory" "$ROOT/scripts/mark-curated.sh" "$TMP" >/dev/null
 CURATOR_MEMORY_DIR="$TMP/stamp-memory" "$ROOT/scripts/mark-curated.sh" "$TMP" >/dev/null

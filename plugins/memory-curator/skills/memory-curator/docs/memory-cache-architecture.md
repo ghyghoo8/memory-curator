@@ -42,7 +42,7 @@ flowchart TD
     Registry --> Detector
 ```
 
-数据分为四层：
+数据分为五类：
 
 | 层 | 默认位置 | 职责 | 是否真相源 | 是否可删除重建 |
 |---|---|---|---|---|
@@ -88,7 +88,9 @@ note 文件集合
 - 风险与证据：`risk`、`evidence_refs`、supersession 和 wiki links；
 - 一致性：note 的 `content_hash` 与 `MEMORY.md` 的 source hash。
 
-构建时先写临时文件，再通过原子替换发布，避免读取到半写入的 JSON。
+JSON schema 为 4。`memory_frontmatter.py` 为索引读取与 metadata writer 提供同一有限语法；显式 null/空列表覆盖旧顶层值，只有 metadata 字段缺失才回退。未知字段保留，不支持语法或重复 key 在写入前报错。
+
+构建时先写临时文件，再通过原子替换发布，避免读取到半写入的 JSON。注册表重建要求每条 note 恰好归类一次；非法 status 或 active 缺 layer 时失败并保留原文件。description 缺失时只复用注册表链接后的摘要，重复重建保持幂等。
 
 ### 路由算法
 
@@ -110,6 +112,8 @@ note 文件集合
 - 对已产生正向匹配的 `high-if-wrong` 记忆加权，提醒调用方优先精读和核验；
 - 按得分和文件名稳定排序，只返回 top-N 元数据。
 
+一次 route 请求用同一个当天日期判断全部到期条件，下一请求重新取日期；不跨请求缓存日期。
+
 路由结果不是最终事实。调用方仍需只读取排名靠前且确实相关的 note 正文；
 命中高风险或非 active 记忆时，应先验证再使用。
 
@@ -118,7 +122,7 @@ note 文件集合
 | 状态 | 默认行为 |
 |---|---|
 | `.curator-index.json` 不存在 | 从当前 Markdown 构造一次内存索引，不自动落盘 |
-| 缓存存在且通过 strict check | 使用持久化机器索引路由 |
+| 缓存存在且通过 strict check | 复用检查返回的持久化索引，不二次加载 JSON |
 | 缓存存在但损坏或陈旧 | 拒绝路由，要求显式重建 |
 | 使用 `route-memory.sh --rebuild` | 本次直接从当前源构造内存索引，不覆盖持久化缓存 |
 | 使用 `build-index.sh` | 原子重建并持久化 `.curator-index.json` |
@@ -131,11 +135,13 @@ note 文件集合
 搜索侧车默认位于 `.index/memory.sqlite`，由 `build-search-index.sh` 显式构建。
 它是不可变的派生快照，查询时以 SQLite `mode=ro&immutable=1` 打开，避免召回阶段生成
 WAL/SHM 文件或意外修改索引。
+连接使用转义后的文件 URI，文件名中的 `#/?/%` 不会变成 URI 参数。结果路径由当前 memory 根与受约束的文件名组合，移动副本不再返回旧绝对路径。
 
 ### 关键词召回
 
 所有 note 的正文和路由字段会进入 FTS5。keyword 策略使用 FTS5/BM25 召回，
 并继续应用 status、`review_after`、layer、freshness 和 risk 过滤。
+keyword 即使在向量库中也不会读取/计算向量或调用 embedding adapter。
 
 ### 向量召回
 
@@ -151,11 +157,14 @@ WAL/SHM 文件或意外修改索引。
 只有显式选择 `full` 或 `--embedding-include-inactive` 才扩大数据范围。
 远程 adapter 可能接收记忆内容，因此必须先取得数据外发授权。
 
-`memory-curator` 不读取、输出或持久化 API Key，也不把 adapter 命令写入数据库。
+检索核心不读取或持久化 API Key，也不把 adapter 命令写入数据库。内置
+`embedding_api_adapter.py` 负责读取项目 `.env` 或进程环境变量，Key 可选；
+它支持 OpenAI-compatible `/embeddings` 与原生 BGE `/embed`，配置和协议见
+[embedding adapter 参考](../references/embedding-adapters.md)。配置本身不启用模型调用。
 
 ### 混合召回和降级
 
-hybrid 策略使用 Reciprocal Rank Fusion 合并 keyword 与 vector 排名。
+hybrid 策略使用 Reciprocal Rank Fusion 合并 keyword 与 vector 排名。vector 有结果时只计算向量排名。
 如果没有可用向量，vector/hybrid 会在结果中明确记录降级为 keyword；
 这类结果不能作为“语义检索有效”的 benchmark 成绩。
 
@@ -164,13 +173,15 @@ provider、model、fingerprint、dimensions 不一致或 adapter 执行失败时
 
 ### 侧车失效
 
-SQLite manifest 保存语料 `corpus_hash`。该哈希由以下内容生成：
+SQLite manifest 保存 schema 2、source_index_schema 4 与语料 `corpus_hash`；版本门禁先于内容验证和 adapter 调用。旧 schema 必须显式重建。该哈希由以下内容生成：
 
 - `MEMORY.md` source hash；
 - 每个 note 的文件名和 `content_hash`。
 
 每次搜索前都会基于当前 Markdown 重新计算 corpus hash。只要注册表或任一 note 发生变化，
-搜索就拒绝陈旧侧车并要求显式重建。
+搜索就拒绝陈旧侧车并要求显式重建。搜索使用只读取内容并计算 hash 的路径，不重复做 frontmatter、摘要、关键词和日期解析；仍逐次读取所有源内容，不能仅凭 size/mtime 复用。note 哈希沿用 UTF-8 文本通用换行规范化，MEMORY.md 沿用原始 bytes；LF/CRLF 行为与旧 hash 契约一致。
+
+strict check 保留完整派生字段比较与重复项检查，文件集合查找改用 set。它与只算 hash 的搜索路径职责不同；不能用 hash 相同绕过被篡改的 JSON 元数据。
 
 ## `.curator-state` 不是内容缓存
 
@@ -181,7 +192,7 @@ SQLite manifest 保存语料 `corpus_hash`。该哈希由以下内容生成：
 - `last_notify_epoch`：最近一次健康提醒时间，用于冷却节流。
 
 它不参与记忆事实或召回排序。健康探测器使用这些基线判断距离上次策展的天数、
-提交数和提醒冷却时间。只有 strict consistency gate 通过后才能运行 `mark-curated.sh`。
+提交数和提醒冷却时间。`mark-curated.sh` 自身先执行 strict 与治理门禁，任一失败均不写 state。detector 的索引漂移和 active 到期日期信号复用一次实时解析，过期当天不提醒；Python/jq 缺失或无法定位时仍静默退出。
 
 ## 读取时序
 
@@ -240,10 +251,11 @@ flowchart LR
 
 - 内容哈希完全相同的重复 note；
 - 高相似候选；
-- 高相似且规则方向相反的潜在冲突。
+- 高相似且全文否定词信号不同的潜在冲突（只是辅助线索）。
 
-阻断项需要人工读正文确认后才能显式 acknowledge。它减少重复和矛盾写入，
-但不替代后续三方一致性与治理检查。
+所有达到相似阈值的候选都进入 `review_required_files`，无论否定词信号是否相同。显示 limit 不截断阻断集合。输出 `assessment_scope=heuristic` 与逐文件原因（exact_duplicate/high_similarity/potential_conflict），并不宣称理解了语义矛盾；条件不同的合理并存也可能需要复核。
+
+阻断项需要读正文确认后才能显式 acknowledge；receipt 保留原因并绑定 candidate/corpus hash，只作审计信息。该启发式是否降低错误、增加多少复核负担，需任务评测验证，不替代三方一致性与治理检查。
 
 推荐命令顺序：
 
@@ -277,7 +289,7 @@ CURATOR_MEMORY_DIR=<memory_dir> ./scripts/mark-curated.sh
 - Markdown 永远是可审阅、可版本控制的真相源；
 - 陈旧持久化缓存不会被静默使用；
 - 构建使用临时文件和原子替换，避免半成品索引；
-- 普通路由默认不读取整个记忆库正文；
+- 程序校验会读取全库必要源内容，但调用方只把相关 top 1-3 正文送入模型上下文；
 - 远程 embedding 不自动启用，也不持久化密钥；
 - 缺少向量时的降级是显式、可观测的；
 - 探测器和兼容 hooks 只提醒，不自动删除或修改记忆。
@@ -299,6 +311,7 @@ CURATOR_MEMORY_DIR=<memory_dir> ./scripts/mark-curated.sh
 | 入口 | 作用 |
 |---|---|
 | `scripts/memory_index.py` | Markdown 解析、JSON build/check/route、preflight |
+| `scripts/memory_frontmatter.py` | 共享有限语法、保留字段范围的 metadata 编辑 |
 | `scripts/memory_search.py` | SQLite FTS5、向量、RRF、corpus hash 校验 |
 | `scripts/build-index.sh` | 持久化机器索引 |
 | `scripts/route-memory.sh` | 低 token 路由 |
@@ -306,4 +319,7 @@ CURATOR_MEMORY_DIR=<memory_dir> ./scripts/mark-curated.sh
 | `scripts/search-memory.sh` | 查询搜索侧车 |
 | `scripts/governance-check.sh` | 生命周期、时效和证据门禁 |
 | `hooks/detect-memory-health.sh` | 确定性健康信号检测 |
-| `scripts/mark-curated.sh` | consistency gate 通过后记录策展基线 |
+| `scripts/mark-curated.sh` | strict + governance 通过后记录策展基线 |
+| `scripts/memory_outcomes.py` | 绑定固定任务、输入和运行证据的离线聚合，不调度模型 |
+
+离线任务收益协议与性能验收入口见仓库根的迭代开发交付文档。20 个合成任务用于准备评测；没有真实运行与判定记录时，报告必须是 incomplete/not_evaluated，不能用检索单测声称任务收益。

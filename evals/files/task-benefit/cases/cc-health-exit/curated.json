@@ -1,0 +1,8 @@
+{
+  "snapshot_schema_version": 1,
+  "injected_content": "# Role-specific exit behavior\nOptional detector: missing jq/unresolved directory -> silent 0; actionable health finding -> 10. Explicit strict checker: stale/missing/inconsistent index -> nonzero; healthy index -> 0. Fail-safe hook behavior does not weaken the explicit checker. Never auto-rebuild during either check.\n",
+  "source_files": [
+    "cases/cc-health-exit/source-memory.md",
+    "cases/cc-health-exit/environment.md"
+  ]
+}

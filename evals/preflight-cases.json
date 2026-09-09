@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "assessment_scope": "heuristic",
+  "cases": [
+    {"id":"exact", "existing":["Keep sandbox approval before retrying commands."], "candidate":"Keep sandbox approval before retrying commands.", "required":["a.md"], "reason":"exact_duplicate"},
+    {"id":"both_have_negation", "existing":["Never expose secrets. Sandbox approval retry command provider routing stable policy documentation source evidence verification review workflow requires permission."], "candidate":"Never expose secrets. Sandbox approval retry command provider routing stable policy documentation source evidence verification review workflow skips permission.", "required":["a.md"], "reason":"high_similarity"},
+    {"id":"same_meaning_reordered", "existing":["Sandbox approval requires source evidence before command retry."], "candidate":"Before command retry source evidence requires sandbox approval.", "required":["a.md"], "reason":"high_similarity"},
+    {"id":"different_conditions", "existing":["During development sandbox approval permits command retry after source evidence review for local service routing."], "candidate":"During production sandbox approval permits command retry after source evidence review for local service routing.", "required":["a.md"], "reason":"high_similarity"},
+    {"id":"unrelated", "existing":["database transaction rollback locking"], "candidate":"星空插画颜色摄影", "required":[]},
+    {"id":"beyond_display_limit", "existing":["sandbox approval requires source evidence before command retry", "sandbox approval requires source evidence before command retry today"], "candidate":"sandbox approval requires source evidence before command retry", "limit":1, "required":["a.md","b.md"], "reason":"high_similarity"},
+    {"id":"self_target", "existing":["sandbox approval source evidence"], "candidate":"sandbox approval source evidence", "self":true, "required":[]}
+  ]
+}

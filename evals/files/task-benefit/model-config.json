@@ -1,0 +1,12 @@
+{
+  "id": "task-benefit-model-UNCONFIGURED-v1",
+  "status": "placeholder",
+  "model": null,
+  "settings": null,
+  "reviewer": null,
+  "seed_control": "uncontrolled",
+  "seed": null,
+  "fresh_context_per_run": true,
+  "run_order": "interleaved",
+  "note": "This is a protocol template. No model or reviewer has been selected or run. Copy the workspace, fix exact model/reviewer versions and settings, assign a NEW experiment_id and config id, then recompute raw-byte hashes before collecting results."
+}

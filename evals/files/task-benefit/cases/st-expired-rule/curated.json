@@ -1,0 +1,8 @@
+{
+  "snapshot_schema_version": 1,
+  "injected_content": "# Current fixed-date routing\nInclude active notes with no review deadline or a deadline on/after today. Exclude inactive and overdue active notes without changing their metadata. review_after equal to today is still eligible. The old automatic deadline extension was removed.\n",
+  "source_files": [
+    "cases/st-expired-rule/source-memory.md",
+    "cases/st-expired-rule/environment.md"
+  ]
+}

@@ -1,0 +1,8 @@
+{
+  "snapshot_schema_version": 1,
+  "injected_content": "# Note editor scope\nReplace only the existing top-level title value within the first frontmatter block. Preserve line endings, every unrelated field, body bytes and final-newline presence. Missing editable title/frontmatter raises an error. An unchanged title leaves content byte-identical. Do not apply the unrelated documentation formatter.\n",
+  "source_files": [
+    "cases/ex-line-endings/source-memory.md",
+    "cases/ex-line-endings/environment.md"
+  ]
+}

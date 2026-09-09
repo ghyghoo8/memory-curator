@@ -1,0 +1,7 @@
+{
+  "snapshot_schema_version": 1,
+  "injected_content": "# Existing note editing contract\nThis utility preserves every byte outside the title value, including CRLF versus LF and final newline presence. A missing title or absent frontmatter is an error, never an invitation to rewrite the document. If the title is already equal, return unchanged content.\n\n# Unrelated Markdown formatter\nThe documentation formatter normalizes all Markdown to LF and sorts fields; it is not the note editor.\n",
+  "source_files": [
+    "cases/ex-line-endings/source-memory.md"
+  ]
+}

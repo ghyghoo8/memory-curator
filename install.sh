@@ -58,19 +58,48 @@ if [[ "$WITH_CLAUDE_HOOKS" == 1 ]]; then
   fi
   command -v jq >/dev/null 2>&1 || { echo "❌ 需要 jq 才能合并 settings.json，请先安装 jq"; exit 1; }
   mkdir -p "$(dirname "$SETTINGS")"
-  [[ -f "$SETTINGS" ]] || echo '{}' > "$SETTINGS"
-  tmp="$(mktemp)"
-  jq \
+  # Prepare beside the destination; the original (including absence) stays intact
+  # until a complete, structurally valid JSON document can be published.
+  CURATOR_SETTINGS_INPUT="$SETTINGS"
+  CURATOR_NEW_SETTINGS=false
+  if [[ ! -e "$SETTINGS" && ! -L "$SETTINGS" ]]; then
+    CURATOR_SETTINGS_INPUT=/dev/null
+    CURATOR_NEW_SETTINGS=true
+  fi
+  CURATOR_SETTINGS_TMP="$(mktemp "$(dirname "$SETTINGS")/.settings.json.curator.XXXXXX")"
+  trap 'rm -f "$CURATOR_SETTINGS_TMP"' EXIT
+  if ! jq -e -s \
+    --argjson new_settings "$CURATOR_NEW_SETTINGS" \
     --arg stopcmd "$SRC/hooks/on-stop.sh" \
     --arg pushcmd "$SRC/hooks/on-pre-push.sh" '
     def addhook(event; matcher; cmd):
-      .hooks[event] = (((.hooks[event]) // [])
-        | map(select(any(.hooks[]?; .command == cmd) | not))
-        + [{matcher: matcher, hooks: [{type: "command", command: cmd}]}]);
-    (.hooks //= {})
+      ([((.hooks[event]) // [])[] | .hooks[] | select(.command == cmd)] | length) as $matches
+      | if $matches == 0 then
+          .hooks[event] = (((.hooks[event]) // [])
+            + [{matcher: matcher, hooks: [{type: "command", command: cmd}]}])
+        elif $matches == 1 then .
+        else error("ambiguous duplicate " + event + " hooks for " + cmd) end;
+    (if $new_settings then {}
+     elif length == 1 then .[0]
+     else error("settings.json must contain exactly one JSON object") end)
+    | if type == "object" then . else error("settings.json must be an object") end
+    | if has("hooks") then . else .hooks = {} end
+    | if (.hooks | type) == "object" then . else error("settings.hooks must be an object") end
+    | if all(.hooks[]; type == "array") then . else error("hook events must contain arrays") end
+    | if all(.hooks[][]; type == "object") then . else error("hook groups must be objects") end
+    | if all(.hooks[][]; (.hooks | type) == "array" and all(.hooks[]; type == "object"))
+      then . else error("each hook group must contain an array of hook objects") end
     | addhook("Stop"; ""; $stopcmd)
     | addhook("PreToolUse"; "Bash"; $pushcmd)
-  ' "$SETTINGS" > "$tmp" && mv "$tmp" "$SETTINGS"
+  ' "$CURATOR_SETTINGS_INPUT" > "$CURATOR_SETTINGS_TMP"; then
+    echo "❌ 无法合并 hooks，settings.json 保持原状: $SETTINGS" >&2
+    exit 1
+  fi
+  if ! mv "$CURATOR_SETTINGS_TMP" "$SETTINGS"; then
+    echo "❌ 无法写入 hooks，settings.json 保持原状: $SETTINGS" >&2
+    exit 1
+  fi
+  trap - EXIT
   echo "✅ 已注册 hooks → $SETTINGS"
   echo "   Stop      → on-stop.sh（end-work 提醒）"
   echo "   PreToolUse(Bash) → on-pre-push.sh（git push 前提醒）"

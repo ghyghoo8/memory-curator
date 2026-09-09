@@ -7,9 +7,18 @@ import argparse
 import json
 import os
 import stat
+import subprocess
+import sys
 import tempfile
 from pathlib import Path
 from typing import Any
+
+
+SCRIPT_DIR = Path(__file__).resolve().parent
+if str(SCRIPT_DIR) not in sys.path:
+    sys.path.insert(0, str(SCRIPT_DIR))
+
+from memory_frontmatter import replace_metadata_fields
 
 
 ALLOWED_FIELDS = {
@@ -27,56 +36,35 @@ ALLOWED_FIELDS = {
 }
 
 
-def _yaml_value(value: Any) -> str:
-    if value is None:
-        return "null"
-    if isinstance(value, bool):
-        return "true" if value else "false"
-    if isinstance(value, list):
-        return "[" + ", ".join(json.dumps(str(item), ensure_ascii=False) for item in value) + "]"
-    if isinstance(value, (int, float)):
-        return str(value)
-    return json.dumps(str(value), ensure_ascii=False)
+NULLABLE_SCALAR_FIELDS = {"review_after", "superseded_by"}
+LIST_FIELDS = {"supersedes", "evidence_refs"}
 
 
-def update_frontmatter(text: str, fields: dict[str, Any]) -> str:
-    if not text.startswith("---\n"):
-        raise ValueError("note has no YAML frontmatter")
-    end = text.find("\n---\n", 4)
-    if end < 0:
-        raise ValueError("note frontmatter is not terminated")
-    header = text[4:end].splitlines()
-    try:
-        metadata_start = next(i for i, line in enumerate(header) if line.rstrip() == "metadata:")
-    except StopIteration:
-        header.append("metadata:")
-        metadata_start = len(header) - 1
-
-    metadata_end = metadata_start + 1
-    while metadata_end < len(header):
-        line = header[metadata_end]
-        if line and not line.startswith((" ", "\t")):
-            break
-        metadata_end += 1
-
-    existing: dict[str, int] = {}
-    for index in range(metadata_start + 1, metadata_end):
-        line = header[index]
-        if line.startswith("  ") and ":" in line:
-            key = line.strip().split(":", 1)[0]
-            existing[key] = index
-
+def _validated_fields(fields: dict[str, Any]) -> dict[str, Any]:
+    if not isinstance(fields, dict):
+        raise ValueError("manifest fields must be an object")
+    result: dict[str, Any] = {}
     for key, value in fields.items():
         if key not in ALLOWED_FIELDS:
             raise ValueError(f"unsupported governance field: {key}")
-        rendered = f"  {key}: {_yaml_value(value)}"
-        if key in existing:
-            header[existing[key]] = rendered
-        else:
-            header.insert(metadata_end, rendered)
-            metadata_end += 1
+        if key in LIST_FIELDS:
+            if value is None:
+                value = []
+            if not isinstance(value, list) or any(not isinstance(item, str) for item in value):
+                raise ValueError(f"{key} must be a string list or null")
+        elif value is None:
+            if key not in NULLABLE_SCALAR_FIELDS:
+                raise ValueError(f"{key} cannot be null")
+        elif not isinstance(value, str):
+            raise ValueError(f"{key} must be a string" + (" or null" if key in NULLABLE_SCALAR_FIELDS else ""))
+        elif key in NULLABLE_SCALAR_FIELDS and not value.strip():
+            raise ValueError(f"{key} cannot be empty; use null to clear it")
+        result[key] = value
+    return result
 
-    return "---\n" + "\n".join(header) + text[end:]
+
+def update_frontmatter(text: str, fields: dict[str, Any]) -> str:
+    return replace_metadata_fields(text, _validated_fields(fields))
 
 
 def load_manifest(path: Path) -> dict[str, dict[str, Any]]:
@@ -96,12 +84,49 @@ def load_manifest(path: Path) -> dict[str, dict[str, Any]]:
 def _copy_file_metadata(source: Path, target: Path) -> None:
     source_stat = source.stat()
     os.chmod(target, stat.S_IMODE(source_stat.st_mode))
-    if hasattr(os, "listxattr"):
-        for name in os.listxattr(source):
-            try:
+    if all(callable(getattr(os, name, None)) for name in ("listxattr", "getxattr", "setxattr")):
+        try:
+            for name in os.listxattr(source):
                 os.setxattr(target, name, os.getxattr(source, name))
-            except OSError:
-                pass
+        except OSError as exc:
+            raise OSError(f"cannot preserve xattr with native API: {exc}") from exc
+    elif sys.platform == "darwin":
+        _copy_macos_xattrs(source, target)
+
+
+def _run_macos_xattr(arguments: list[str], *, action: str) -> bytes:
+    try:
+        result = subprocess.run(
+            ["/usr/bin/xattr", *arguments],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+        )
+    except OSError as exc:
+        raise OSError(f"cannot preserve xattr ({action}): /usr/bin/xattr could not run") from exc
+    if result.returncode:
+        detail = result.stderr.decode("utf-8", errors="replace").strip()
+        raise OSError(f"cannot preserve xattr ({action}): {detail or 'command failed'}")
+    return result.stdout
+
+
+def _copy_macos_xattrs(source: Path, target: Path) -> None:
+    """Use the bundled macOS CLI when this Python lacks native xattr support."""
+    names_output = _run_macos_xattr(["--", str(source)], action="list")
+    if not names_output:
+        return
+    names = names_output.removesuffix(b"\n").split(b"\n")
+    # The CLI lists one name per line. Ambiguous names must not silently lose an
+    # attribute; later reads also fail if a name containing newlines was split.
+    if any(not name for name in names) or len(set(names)) != len(names):
+        raise OSError("cannot preserve xattr: ambiguous attribute names in CLI output")
+    for raw_name in names:
+        name = os.fsdecode(raw_name)
+        encoded = _run_macos_xattr(["-p", "-x", "--", name, str(source)], action="read")
+        try:
+            value = bytes.fromhex(encoded.decode("ascii"))
+        except ValueError as exc:
+            raise OSError("cannot preserve xattr: invalid hexadecimal value from CLI") from exc
+        _run_macos_xattr(["-w", "-x", "--", name, value.hex(), str(target)], action="write")
 
 
 def _write_temporary(path: Path, content: bytes) -> str:

@@ -93,6 +93,9 @@ cp -r memory-curator/plugins/memory-curator/skills/memory-curator \
 完整的缓存分层、读取/写入时序、失效语义和设计边界见
 [Memory 缓存与检索架构](docs/memory-cache-architecture.md)。
 
+可靠性与性能改进的技术方案、任务依赖和验收标准见
+[迭代开发交付文档](.codex/plans/iteration-development.md)。实现与验收状态在该文档末尾维护；当前能力以本 README 和架构文档为准。
+
 `.curator-index.json` 是可重建的机器索引,用于减少 token 占用。它不替代 note 文件和 `MEMORY.md`,只负责快速召回:
 
 ```bash
@@ -114,9 +117,22 @@ router 默认只返回 top 3，并排除 `stale/superseded/archived`；只有显
 ./scripts/rebuild-memory-registry.sh --memory-dir <memory_dir> --apply
 ```
 
-新增 note 前必须先运行 `preflight-memory.sh`。精确重复或高相似反向规则会
+新增 note 前必须先运行 `preflight-memory.sh`。精确重复或任意高相似候选会
 返回非零并列出候选；确认确需保留后才使用 `--acknowledge`，可配合
-`--receipt <path>` 保存包含 candidate/corpus hash 的审计凭据。
+`--receipt <path>` 保存包含 candidate/corpus hash 的审计凭据。输出的 `assessment_scope=heuristic` 表示仅启发式检测；`review_required_files` 和逐文件原因不受显示 limit 截断，acknowledge 不会抹去原因，也不自动授权实际写入。
+
+frontmatter 支持有限 YAML（标量、列表、一级 metadata、引号和注释），重复 key 与不支持语法会明确报错。`metadata` 的显式 `null/[]` 优先于旧顶层值，具体模板见 [健康记忆形态](references/judgment-matrix.md#6-健康记忆形态写入改写时遵循)。未分类的 active note 或非法 status 会使 registry 重建失败并保留原文件。
+
+本次缓存升级为 JSON schema 4、SQLite manifest schema 2/source_index_schema 4。旧缓存需要显式重建；版本检查先于 embedding 调用，升级不会自动修改 Markdown 或外发内容：
+
+```bash
+./scripts/build-index.sh --memory-dir <memory_dir>
+./scripts/check-index.sh --memory-dir <memory_dir>
+./scripts/governance-check.sh --memory-dir <memory_dir>
+# 仅使用 FTS5 的库；原有向量库需显式选择原 provider/adapter 重建。
+./scripts/build-search-index.sh --memory-dir <memory_dir> --provider none
+./scripts/search-memory.sh --memory-dir <memory_dir> --strategy keyword "精确规则"
+```
 
 脚本定位只接受显式 `CURATOR_MEMORY_DIR`、当前 cwd 向上的项目 `.codex/memory`,或 cwd 的精确 legacy 映射。不会从全局搜索结果中随便选择第一个记忆库。
 
@@ -129,39 +145,68 @@ router 默认只返回 top 3，并排除 `stale/superseded/archived`；只有显
 ```
 
 `local-hash` 是零网络、可复现的向量基线，不等同于语义 embedding。若没有可用向量，hybrid/vector 会在输出中显式标记降级。
+keyword 在含向量的库中仍只执行 FTS5，不调用 embedding。搜索校验完整源内容的 hash，结果路径按当前 memory 目录生成，支持移动后的副本与含特殊字符的只读数据库路径。
 
-### Embedding 配置优先级
+### Embedding 服务配置
 
-1. **API + Key（推荐）**：通过受信任的结构化 command adapter 调用已有
-   OpenAI-compatible embedding API。API Key 只配置在 adapter 的运行环境中；
-   `memory-curator` 不读取、不输出、不持久化密钥。远程调用前仍须确认记忆内容的
-   外发范围，默认优先使用 `--embedding-content summary`。项目 adapter 推荐使用
-   provider-neutral 的 `EMBEDDING_API_KEY`、`EMBEDDING_BASE_URL`、
-   `EMBEDDING_MODEL`，不保留 provider-specific 旧变量兼容。
-2. **本地 BGE-M3（可选）**：仅在禁止数据外发、需要离线运行、或远程 API
-   不可用时启用。它不是默认依赖，也不需要为了正常使用 `memory-curator` 而下载。
+已有的原生 BGE-M3 `/embed` 服务或 OpenAI-compatible `/embeddings` 服务可直接
+通过内置 `scripts/embedding_api_adapter.py` 接入，适配器只依赖 Python 标准库。
+**`EMBEDDING_API_KEY` 可选**：自建服务无需鉴权时可以不配置或留空，适配器不会发送
+`Authorization` 请求头；有值时才发送 Bearer Key。服务在本机或远程都可使用，
+SQLite 向量索引仍保存在本地，默认路径为 `<memory_dir>/.index/memory.sqlite`。
 
-真实 embedding 通过显式结构化命令接入；命令从 stdin 接收
-`{"texts":[...]}`，向 stdout 返回
-`{"provider":"...","model":"...","provider_fingerprint":"...","vectors":[...]}`：
+在使用记忆的项目 `.env` 中配置（已有 `.env` 时只补充这几项）：
 
-```bash
-./scripts/build-search-index.sh \
-  --memory-dir <memory_dir> --db <semantic.sqlite> \
-  --provider command --embedding-content summary \
-  --embedding-command '<trusted-adapter-command>'
-./scripts/search-memory.sh \
-  --memory-dir <memory_dir> --db <semantic.sqlite> --strategy hybrid \
-  --embedding-command '<trusted-adapter-command>' "查询"
+```dotenv
+EMBEDDING_BASE_URL=http://127.0.0.1:8000/embed
+EMBEDDING_MODEL=BGE-M3
+EMBEDDING_API_KEY=
 ```
 
-adapter 命令属于受信任本地代码边界；数据库只记录 provider/model/dimensions
-和不含密钥的 provider fingerprint，不保存命令或密钥。远程 embedding 涉及
-记忆内容外发，必须先取得明确授权。命令失败或 provider/model/fingerprint/dimension
-变化都会硬失败，不静默冒充语义检索。构建按32条分批，默认只向量化 active 且
-未过 `review_after` 的记忆；只有显式 `--embedding-include-inactive` 才会扩大范围。
-`--embedding-content summary` 只发送 name/description/domain/type/scope/entities；
-`full` 才追加正文（单条最多 8,000 字符）。
+`BASE_URL` 和 `MODEL` 必填，等号两侧可以有空格。地址以 `/embed` 结尾时使用
+原生 BGE 协议：先读取同前缀 `/health` 校验模型，再发送 `{"texts":[...]}`。
+`BGE-M3` 与 `BAAI/bge-m3` 按同一模型校验，大小写不敏感；该配置不会切换服务已加载
+的模型。其他地址按 OpenAI-compatible 协议追加 `/embeddings`，完整
+`/embeddings` 地址直接使用，不会自动补 `/v1`。配置模板见
+[embedding.env.example](references/embedding.env.example)。
+
+进程环境变量优先于 `.env`（包括显式空值）。默认仅读取运行命令时当前目录的
+`.env`，不会向上搜索；建议用 `--env-file` 明确指定项目配置。`.env` 按有限格式
+解析，不执行 shell，不做变量展开，也无需 `source`；值含空格或 `#` 时使用引号。
+配置文件不应放进插件安装目录。
+
+下面命令从仓库根目录运行；插件安装后将脚本路径替换为实际 `<skill_dir>/scripts/`
+绝对路径（`<skill_dir>` 是包含 `SKILL.md` 的目录，完整示例见
+[Embedding 接入说明](references/embedding-adapters.md)）：
+
+```bash
+# 明确使用同一个 adapter 与项目配置进行建库和查询；路径中的双引号保留空格。
+embedding_command='python3 "/absolute/path/to/memory-curator/scripts/embedding_api_adapter.py" --env-file "/absolute/path/to/project/.env"'
+./scripts/build-search-index.sh \
+  --memory-dir "/absolute/path/to/project/.codex/memory" \
+  --provider command --embedding-content summary \
+  --embedding-command "$embedding_command"
+./scripts/search-memory.sh \
+  --memory-dir "/absolute/path/to/project/.codex/memory" --strategy hybrid \
+  --embedding-command "$embedding_command" "查询"
+```
+
+**配置服务不会自动启用向量化**：建库默认仍为 `--provider none`，普通
+`route-memory.sh` 的路由不变。真实 embedding 需要显式 `--provider command` 建库，
+再用同一配置执行 vector/hybrid 查询；keyword 策略不会调用 adapter。
+
+只有 adapter 读取 API Key，数据库不保存命令或密钥。构建按 32 条分批，默认只
+向量化 active 且未过 `review_after` 的记忆；只有显式
+`--embedding-include-inactive` 才扩大范围。`summary` 只发送
+name/description/domain/type/scope/entities，`full` 才追加正文，单条输入最多
+8,000 字符；远程服务也会收到查询文本，首次外发前仍需明确授权。
+服务、模型、内容范围或源记忆变化后应显式全量重建；同名服务暗换模型权重且未提供
+或未改变 revision 时，fingerprint 无法检出。协议测试不代表真实服务连通性或
+语义检索收益已验证。
+
+本地 BGE-M3 仍是禁止数据外发或需要离线运行时的可选方案，不是默认依赖，
+无需为了正常使用 `memory-curator` 自动下载。自定义 command adapter 的输入输出
+协议、错误处理和配置细则见 [Embedding 接入说明](references/embedding-adapters.md)。
 
 统一评测使用：
 
@@ -169,8 +214,12 @@ adapter 命令属于受信任本地代码边界；数据库只记录 provider/mo
 ./scripts/benchmark-memory.sh \
   --memory-dir <memory_dir> \
   --cases <cases.json> \
-  --adapters curator-keyword,curator-hybrid
+  --adapters curator-keyword,curator-fts,curator-hybrid
 ```
+
+`curator-keyword` 保留原元数据加权路由含义，`curator-fts` 才是 FTS5。报告标明算法与计时范围；远程 evidence URL 仅计为未验证声明。性能验收使用独立的 `tests/benchmark_memory_performance.py`，不把预验证的召回内核时间冒充 CLI 总耗时。
+
+任务收益使用 [20 个固定合成任务与离线协议](evals/files/task-benefit/README.md)：每个任务的 none/original/curated 各运行 3 次。先以空 runs 生成完整实验的 `experiment_digest`，每条真实 run 必须记录该摘要；聚合时重算，缺失或输入漂移为 invalid，报告 schema 为 2。旧 run 不能按当前输入补签，须保留旧实验并以新身份、新摘要重新执行。聚合器不执行模型；正式记录仍为 0/180、incomplete/not_evaluated，临时冒烟不代表策展增益。报告必须写在只读输入 workspace 外；缺少 token、耗时或修正记录时成本比较显示 unavailable。
 
 TencentDB Agent Memory 的固定版本隔离 POC 见 `poc/tencentdb-agent-memory/README.md`；它只作为检索侧车候选，不接管 Markdown 真相源。
 
@@ -186,11 +235,11 @@ TencentDB Agent Memory 的固定版本隔离 POC 见 `poc/tencentdb-agent-memory
 ./hooks/detect-memory-health.sh "$PWD"
 ```
 
-它只读健康信号,不删改文件。任一信号达阈值时输出原因并 `exit 10`:文件数≠索引数、孤儿/死链、`.curator-index.json` 漂移、时效线索词命中、条数/体积膨胀、距上次策展天数/提交数、未提交 `.md` 改动数。阈值可用环境变量覆盖(`CURATOR_MAX_NOTES` / `CURATOR_MAX_KB` / `CURATOR_MAX_STALE` / `CURATOR_MAX_DAYS` / `CURATOR_MAX_COMMITS` / `CURATOR_MAX_MD_DIRTY` / `CURATOR_COOLDOWN`)。
+它只读健康信号,不删改文件。任一信号达阈值时输出原因并 `exit 10`:文件数≠索引数、孤儿/死链、`.curator-index.json` 漂移、active 记忆超过 `review_after`、时效线索词命中、条数/体积膨胀、距上次策展天数/提交数、未提交 `.md` 改动数。到期当天不算过期；inactive 历史日期不产生 active 到期提醒。索引与到期检查复用一次解析，缺少 Python/jq 或无法定位时静默退出。阈值可用环境变量覆盖(`CURATOR_MAX_NOTES` / `CURATOR_MAX_KB` / `CURATOR_MAX_STALE` / `CURATOR_MAX_DAYS` / `CURATOR_MAX_COMMITS` / `CURATOR_MAX_MD_DIRTY` / `CURATOR_COOLDOWN`)。
 
 > "距上次策展"基准由 skill 策展完成后写入 `<memory_dir>/.curator-state`。
 
-完整策展严格校验通过后,用确定性脚本盖章并保留已有 cooldown state:
+完整策展后用确定性脚本盖章；它自身先执行 strict 和治理门禁，任一失败都不修改 state，通过时保留已有 cooldown key：
 
 ```bash
 CURATOR_MEMORY_DIR=<memory_dir> ./scripts/mark-curated.sh
@@ -208,6 +257,7 @@ CURATOR_MEMORY_DIR=<memory_dir> ./scripts/mark-curated.sh
 ```
 
 兼容 hooks 只做"探测 + 提醒",真正的删改仍走 skill 的用户过目流程,绝不自动删。
+重复安装保留唯一已有的本插件 hook 及其组配置；若同一事件已有多条相同插件 command，会明确失败并保留 settings，需先处理歧义。JSON、jq 或发布失败均不会输出 hooks 注册成功或覆盖原 settings。
 
 ## 结构
 

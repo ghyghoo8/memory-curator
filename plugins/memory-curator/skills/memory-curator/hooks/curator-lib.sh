@@ -55,14 +55,21 @@ state_get() { # state_get <memory_dir> <key>
 }
 
 state_set() { # state_set <memory_dir> <key> <value>
-  local f key val tmp
+  local f key val tmp filter_rc=0
   f="$(state_file "$1")"; key="$2"; val="$3"
-  tmp="$(mktemp "${f}.tmp.XXXXXX")"
+  tmp="$(mktemp "${f}.tmp.XXXXXX")" || return 1
   if [[ -f "$f" ]]; then
-    grep -v "^$key=" "$f" > "$tmp" 2>/dev/null || true
+    grep -v "^$key=" "$f" > "$tmp" 2>/dev/null || filter_rc=$?
+    # grep=1 means no other keys; >1 is a read failure, not an empty state.
+    if [[ "$filter_rc" -gt 1 ]]; then
+      rm -f "$tmp"
+      return "$filter_rc"
+    fi
   fi
-  printf '%s=%s\n' "$key" "$val" >> "$tmp"
-  mv "$tmp" "$f"
+  if ! printf '%s=%s\n' "$key" "$val" >> "$tmp" || ! mv "$tmp" "$f"; then
+    rm -f "$tmp"
+    return 1
+  fi
 }
 
 now_epoch() { date +%s; }

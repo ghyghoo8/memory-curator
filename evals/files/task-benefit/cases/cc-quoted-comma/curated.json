@@ -1,0 +1,8 @@
+{
+  "snapshot_schema_version": 1,
+  "injected_content": "# Finite scalar-list grammar\nSplit flow lists only on commas outside quotes. Preserve commas/escapes inside quoted strings. Existing unquoted lists and multiline scalar lists are accepted. A=[AGENTS.md, docs/a.md]; B and C each contain exactly [docs/a,b.md, docs/c.md]. Nested object items must produce a clear unsupported-format error, with no write.\n",
+  "source_files": [
+    "cases/cc-quoted-comma/source-memory.md",
+    "cases/cc-quoted-comma/environment.md"
+  ]
+}

@@ -1,0 +1,7 @@
+{
+  "snapshot_schema_version": 1,
+  "injected_content": "# memory-list consumer contract\nThe shell consumer parses stdout as exactly one JSON object: {\"files\": [relative filenames]}. Diagnostics go to stderr. Valid --limit is an integer in [1, 20]; invalid or unknown arguments exit 2 and leave stdout empty. Success exits 0.\n\n# Old unrelated progress output\nA separate human-only importer prints \"Starting import\" to stdout before work; that importer is not memory-list.\n",
+  "source_files": [
+    "cases/ex-cli-contract/source-memory.md"
+  ]
+}

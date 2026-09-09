@@ -1,0 +1,7 @@
+{
+  "snapshot_schema_version": 1,
+  "injected_content": "# Superseded freshness advice\nAn early router included every active note and ignored review dates. A temporary workaround automatically advanced expired review_after values to tomorrow. This workaround was retired when the current routing contract was adopted.\n",
+  "source_files": [
+    "cases/st-expired-rule/source-memory.md"
+  ]
+}

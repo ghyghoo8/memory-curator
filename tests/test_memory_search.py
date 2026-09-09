@@ -4,6 +4,8 @@
 from __future__ import annotations
 
 import importlib.util
+import shutil
+import sqlite3
 import sys
 import tempfile
 import unittest
@@ -21,6 +23,109 @@ SPEC.loader.exec_module(memory_search)
 
 
 class HybridSearchTests(unittest.TestCase):
+    def test_result_filename_cannot_escape_current_root(self) -> None:
+        for kind in ("parent", "absolute", "symlink"):
+            with self.subTest(kind=kind), tempfile.TemporaryDirectory() as tmp:
+                root = Path(tmp)
+                directory = self.create_memory(root)
+                db = root / "search.sqlite"
+                memory_search.build_search_index(directory, db, provider="none")
+                outside = root / "outside.txt"
+                outside.write_text("outside")
+                if kind == "symlink":
+                    (directory / "escape.txt").symlink_to(outside)
+                    name = "escape.txt"
+                else:
+                    name = "../outside.txt" if kind == "parent" else str(outside)
+                with sqlite3.connect(db) as conn:
+                    conn.execute("UPDATE notes SET file=? WHERE file='sandbox.md'", (name,))
+                conn.close()
+                with self.assertRaisesRegex(RuntimeError, "outside the memory"):
+                    memory_search.search_memory(directory, db, "沙箱审批", strategy="keyword")
+
+    def test_old_or_missing_schema_is_rejected_before_embedding(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            memory_dir = self.create_memory(root)
+            db = root / "memory.sqlite"
+            for key, value in (("schema_version", "1"), ("source_index_schema", "3"),
+                               ("source_index_schema", None)):
+                with self.subTest(key=key, value=value):
+                    memory_search.build_search_index(memory_dir, db, provider="local-hash")
+                    with sqlite3.connect(db) as conn:
+                        if value is None:
+                            conn.execute("DELETE FROM manifest WHERE key=?", (key,))
+                        else:
+                            conn.execute("INSERT OR REPLACE INTO manifest VALUES (?,?)", (key, value))
+                    conn.close()  # Publish the WAL before the immutable reader opens it.
+                    with mock.patch.object(memory_search, "_vector_ranked",
+                                           side_effect=AssertionError("must reject schema first")):
+                        with self.assertRaisesRegex(RuntimeError, "schema"):
+                            memory_search.search_memory(memory_dir, db, "沙箱")
+
+    def test_keyword_on_command_index_never_calls_embedding_or_vector(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            memory_dir = self.create_memory(root)
+            db = root / "semantic.sqlite"
+            provider = {
+                "embedding_provider": "fake", "embedding_model": "v1",
+                "provider_fingerprint": "fake-v1", "dimensions": "2",
+            }
+            with mock.patch.object(memory_search, "command_embeddings_batched",
+                                   return_value=([[1.0, 0.0]], provider)):
+                memory_search.build_search_index(memory_dir, db, provider="command",
+                                                 embedding_command="fake")
+            with mock.patch.object(memory_search, "_vector_ranked",
+                                   side_effect=AssertionError("keyword must not use vectors")):
+                for adapter in (None, "must-not-run"):
+                    result = memory_search.search_memory(
+                        memory_dir, db, "沙箱审批", strategy="keyword", embedding_command=adapter)
+                    self.assertEqual(result["results"][0]["file"], "sandbox.md")
+
+    def test_vector_with_results_does_not_compute_keywords(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            memory_dir = self.create_memory(root)
+            db = root / "vector.sqlite"
+            memory_search.build_search_index(memory_dir, db, provider="local-hash")
+            with mock.patch.object(memory_search, "_keyword_ranked",
+                                   side_effect=AssertionError("unused keyword computation")):
+                result = memory_search.search_memory(memory_dir, db, "沙箱", strategy="vector")
+            self.assertTrue(result["results"])
+
+    def test_copy_rebases_result_paths_and_checks_only_current_corpus(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            original = self.create_memory(root)
+            memory_search.build_search_index(original, provider="none")
+            copied = root / "copied"
+            shutil.copytree(original, copied)
+            shutil.rmtree(original)
+            result = memory_search.search_memory(copied, None, "沙箱审批", strategy="keyword")
+            self.assertEqual(Path(result["results"][0]["path"]), (copied / "sandbox.md").resolve())
+            (copied / "sandbox.md").write_text("Changed")
+            with self.assertRaisesRegex(RuntimeError, "stale"):
+                memory_search.search_memory(copied, None, "沙箱", strategy="keyword")
+
+    def test_uri_characters_remain_read_only_and_missing_db_is_not_created(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            memory_dir = self.create_memory(root)
+            for name in ("backup#1.sqlite", "query?.sqlite", "空 格%25.sqlite"):
+                with self.subTest(name=name):
+                    db = root / name
+                    memory_search.build_search_index(memory_dir, db)
+                    before = {p.name: p.read_bytes() for p in root.iterdir() if p.is_file()}
+                    result = memory_search.search_memory(memory_dir, db, "沙箱", strategy="keyword")
+                    self.assertTrue(result["results"])
+                    self.assertEqual(before, {p.name: p.read_bytes() for p in root.iterdir() if p.is_file()})
+            missing = root / "missing#db.sqlite"
+            with self.assertRaises(sqlite3.OperationalError):
+                memory_search.search_memory(memory_dir, missing, "沙箱", strategy="keyword")
+            self.assertFalse(missing.exists())
+            self.assertFalse((root / "missing").exists())
+
     def test_cleanup_removes_sqlite_wal_and_shm_artifacts(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             path = Path(tmp) / "index.tmp"

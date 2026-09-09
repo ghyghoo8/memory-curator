@@ -1,0 +1,7 @@
+{
+  "snapshot_schema_version": 1,
+  "injected_content": "# Non-blocking detector\nMissing jq or unresolved memory directory must make the optional detector exit 0 silently. Real notification-worthy findings exit 10. Legacy Stop/push adapters always avoid blocking the user's command.\n\n# Strict integrity check\nAn explicit check must fail nonzero on stale/missing/inconsistent indexes. It must not auto-rebuild to manufacture success.\n",
+  "source_files": [
+    "cases/cc-health-exit/source-memory.md"
+  ]
+}

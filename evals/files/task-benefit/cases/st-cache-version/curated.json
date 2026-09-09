@@ -1,0 +1,8 @@
+{
+  "snapshot_schema_version": 1,
+  "injected_content": "# Current cache contract (R1)\nJSON schema 4 and SQLite schema 2/source_index_schema 4 are required. Old matching hashes do not override a schema mismatch. Refuse stale schemas before adapter calls and request an explicit rebuild; queries/checks remain read-only. The retired prototype's automatic rebuild advice is superseded by the supplied R1 contract.\n",
+  "source_files": [
+    "cases/st-cache-version/source-memory.md",
+    "cases/st-cache-version/environment.md"
+  ]
+}

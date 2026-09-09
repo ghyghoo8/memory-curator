@@ -1,0 +1,2 @@
+# Incident: unchanged stat, changed content
+A fixture rewrite replaced rule text with an equal-length string and restored the original mtime using os.utime(ns=...). Size and nanosecond mtime both matched, but the meaning and content hash changed. Stat-only cache validation served the stale rule. Continue reading complete source contents for the hash; optimize duplicated parsing/reads, not away the content check.

@@ -1,0 +1,757 @@
+{
+  "case_schema_version": 1,
+  "experiment_id": "task-benefit-synthetic-template-20260908-v1",
+  "model_config": {
+    "id": "task-benefit-model-UNCONFIGURED-v1",
+    "ref": "model-config.json",
+    "hash": "e097bd06d38ca8700f7104e4d713cf2d31c71aa477ab52c40cb3f6c549493e57"
+  },
+  "cases": [
+    {
+      "id": "nr-csv",
+      "category": "no_relevant_memory",
+      "task": "Return only the CSV export for the three supplied records, sorted by numeric id ascending. Use the supplied column order and quote fields using ordinary CSV escaping. Do not add project-specific columns or commentary.",
+      "environment_ref": "cases/nr-csv/environment.md",
+      "environment_hash": "237ea20617b2cbe2800f03389189deae36d309b6ff0854995191dc0bcf0c73f5",
+      "required_constraints": [
+        "Header is exactly id,name.",
+        "Rows are ordered 1, 2, 3.",
+        "The comma in Lin, Mei and quotes in Jo \"JJ\" are escaped correctly.",
+        "Only the two requested columns are emitted."
+      ],
+      "forbidden_actions": [
+        "Add tenant_id, semicolon separators or title-case headers from unrelated memory.",
+        "Read external files or call a service."
+      ],
+      "high_risk": false,
+      "requires_memory": false,
+      "requires_unique_experience": false,
+      "source_refs": [
+        "cases/nr-csv/environment.md",
+        "cases/nr-csv/source-memory.md"
+      ],
+      "memory_inputs": {
+        "none": {
+          "snapshot_ref": null,
+          "snapshot_hash": null
+        },
+        "original": {
+          "snapshot_ref": "cases/nr-csv/original.json",
+          "snapshot_hash": "5d3aeb48e72f59871fdcdfa59ff432e4f6e22497fc3b3341f64ffbe57d8c8d27"
+        },
+        "curated": {
+          "snapshot_ref": "cases/nr-csv/curated.json",
+          "snapshot_hash": "c84916ae154637cc7eb502d8936a756e297b68e8be8c33c2836d9096c9ed3299"
+        }
+      }
+    },
+    {
+      "id": "nr-duration",
+      "category": "no_relevant_memory",
+      "task": "Write a Python function format_duration(seconds) for the supplied standalone exercise and show its results for the given examples. Keep the public return type and input range described by the exercise; no project integration is requested.",
+      "environment_ref": "cases/nr-duration/environment.md",
+      "environment_hash": "9b05602382948a7650deb9eac48d7ac2848c971b356f05131399c1f2208fc666",
+      "required_constraints": [
+        "Return a string, using integer division and remainder.",
+        "Results are 00:00, 01:05 and 59:59.",
+        "No scaling from seconds to milliseconds."
+      ],
+      "forbidden_actions": [
+        "Return a telemetry object or add request IDs.",
+        "Add API endpoints or nonstandard dependencies."
+      ],
+      "high_risk": false,
+      "requires_memory": false,
+      "requires_unique_experience": false,
+      "source_refs": [
+        "cases/nr-duration/environment.md",
+        "cases/nr-duration/source-memory.md"
+      ],
+      "memory_inputs": {
+        "none": {
+          "snapshot_ref": null,
+          "snapshot_hash": null
+        },
+        "original": {
+          "snapshot_ref": "cases/nr-duration/original.json",
+          "snapshot_hash": "840d807bf49d1b0dfef85589329641cf41d9d50a134477972973751efda63bfe"
+        },
+        "curated": {
+          "snapshot_ref": "cases/nr-duration/curated.json",
+          "snapshot_hash": "c84916ae154637cc7eb502d8936a756e297b68e8be8c33c2836d9096c9ed3299"
+        }
+      }
+    },
+    {
+      "id": "nr-error-copy",
+      "category": "no_relevant_memory",
+      "task": "Write the two pieces of Chinese interface copy requested in the environment: one short explanatory message and one retry button label. The message should help a person retry a failed draft save, using only the confirmed behavior below.",
+      "environment_ref": "cases/nr-error-copy/environment.md",
+      "environment_hash": "72b2035b36fbc47483c6513f1b9d63c06a63ace5ca126360d1fc418bd90fb717",
+      "required_constraints": [
+        "Explain that save failed, text remains in this tab, and retry is available.",
+        "Return only message and retry_label.",
+        "Meet both length limits."
+      ],
+      "forbidden_actions": [
+        "Promise persistence after tab closure, background recovery, or automatic synchronization.",
+        "Expose invented internal diagnostics or support contacts."
+      ],
+      "high_risk": false,
+      "requires_memory": false,
+      "requires_unique_experience": false,
+      "source_refs": [
+        "cases/nr-error-copy/environment.md",
+        "cases/nr-error-copy/source-memory.md"
+      ],
+      "memory_inputs": {
+        "none": {
+          "snapshot_ref": null,
+          "snapshot_hash": null
+        },
+        "original": {
+          "snapshot_ref": "cases/nr-error-copy/original.json",
+          "snapshot_hash": "e639bfa4c86ee88051cd0d8a6ad345d51b5f2c03d256580a006b640c942d27f6"
+        },
+        "curated": {
+          "snapshot_ref": "cases/nr-error-copy/curated.json",
+          "snapshot_hash": "c84916ae154637cc7eb502d8936a756e297b68e8be8c33c2836d9096c9ed3299"
+        }
+      }
+    },
+    {
+      "id": "nr-invoice-total",
+      "category": "no_relevant_memory",
+      "task": "Calculate the synthetic order total from the given integer-cent inputs and return the exact small JSON response described below. This is a closed arithmetic exercise; use only the explicit rounding and shipping rules in the environment.",
+      "environment_ref": "cases/nr-invoice-total/environment.md",
+      "environment_hash": "45e290af8269d3c12c645bf028d563fe986c20e340f542d412e38418008d1d39",
+      "required_constraints": [
+        "subtotal_cents is 599, shipping_cents is 100, total_cents is 699.",
+        "All values are integer cents; emit exactly the three requested keys."
+      ],
+      "forbidden_actions": [
+        "Apply the unrelated free-shipping rule or round to whole dollars.",
+        "Fetch prices, taxes or exchange rates."
+      ],
+      "high_risk": false,
+      "requires_memory": false,
+      "requires_unique_experience": false,
+      "source_refs": [
+        "cases/nr-invoice-total/environment.md",
+        "cases/nr-invoice-total/source-memory.md"
+      ],
+      "memory_inputs": {
+        "none": {
+          "snapshot_ref": null,
+          "snapshot_hash": null
+        },
+        "original": {
+          "snapshot_ref": "cases/nr-invoice-total/original.json",
+          "snapshot_hash": "fcc9b0b7c82e377e6386e0fc624de49763581cbb39105fecd9bad44f09e4c600"
+        },
+        "curated": {
+          "snapshot_ref": "cases/nr-invoice-total/curated.json",
+          "snapshot_hash": "c84916ae154637cc7eb502d8936a756e297b68e8be8c33c2836d9096c9ed3299"
+        }
+      }
+    },
+    {
+      "id": "ex-cli-contract",
+      "category": "exact_constraint",
+      "task": "Implement the fictional memory-list CLI entrypoint for the tiny interface below. Return Python code and a short table of observable results for valid and invalid limit arguments. Preserve the existing consumer contract that is relevant to this command.",
+      "environment_ref": "cases/ex-cli-contract/environment.md",
+      "environment_hash": "92f1fe7b8c96727282d785e022c4ebc276583e9e49312ce4c21a5481b1684826",
+      "required_constraints": [
+        "Successful stdout is exactly one JSON object with files.",
+        "Limits 1 and 20 are accepted; 0, 21, non-integer and missing values exit 2.",
+        "Errors leave stdout empty and put diagnostics on stderr.",
+        "Default limit is 3 and successful calls return 0."
+      ],
+      "forbidden_actions": [
+        "Print progress on stdout.",
+        "Clamp invalid limits silently or add a dependency."
+      ],
+      "high_risk": false,
+      "requires_memory": true,
+      "requires_unique_experience": false,
+      "source_refs": [
+        "cases/ex-cli-contract/environment.md",
+        "cases/ex-cli-contract/source-memory.md"
+      ],
+      "memory_inputs": {
+        "none": {
+          "snapshot_ref": null,
+          "snapshot_hash": null
+        },
+        "original": {
+          "snapshot_ref": "cases/ex-cli-contract/original.json",
+          "snapshot_hash": "2d868719668a1f6c8409c57d5b96dd4ea923cb8b2830daaa4c04ca981028bc8d"
+        },
+        "curated": {
+          "snapshot_ref": "cases/ex-cli-contract/curated.json",
+          "snapshot_hash": "5903c177937abeecf24b2ffe806a9c6910cf8997f2d396febe4ce9065508fbf2"
+        }
+      }
+    },
+    {
+      "id": "ex-line-endings",
+      "category": "exact_constraint",
+      "task": "Implement replace_title(data: bytes, title: str) -> bytes for the supplied note format. Show an example using the exact CRLF byte input below and state how a note with no editable title is handled. Apply only the requested title replacement.",
+      "environment_ref": "cases/ex-line-endings/environment.md",
+      "environment_hash": "c68b7cf793bdebda62f3444bf5806f728397aaa3acb6ffa0db98d4613b9425eb",
+      "required_constraints": [
+        "Only Old becomes New in the CRLF example.",
+        "CRLF and all body/owner bytes remain identical.",
+        "Missing frontmatter/title raises a clear error.",
+        "The no-change case is byte-identical."
+      ],
+      "forbidden_actions": [
+        "Decode with universal-newline normalization and serialize the whole note.",
+        "Insert an absent title or reorder metadata."
+      ],
+      "high_risk": false,
+      "requires_memory": true,
+      "requires_unique_experience": false,
+      "source_refs": [
+        "cases/ex-line-endings/environment.md",
+        "cases/ex-line-endings/source-memory.md"
+      ],
+      "memory_inputs": {
+        "none": {
+          "snapshot_ref": null,
+          "snapshot_hash": null
+        },
+        "original": {
+          "snapshot_ref": "cases/ex-line-endings/original.json",
+          "snapshot_hash": "d36c8c04129254736144acbf0ddd310c56e9dd33d6d061bf425b177bcd8c33a8"
+        },
+        "curated": {
+          "snapshot_ref": "cases/ex-line-endings/curated.json",
+          "snapshot_hash": "c582f794f39b360860dea2fcb87131983eae914fa77d37095f8dced325f0f2f5"
+        }
+      }
+    },
+    {
+      "id": "ex-readonly-query",
+      "category": "exact_constraint",
+      "task": "Repair the provided SQLite connection helper for a read-only report query. Return the corrected Python helper and a concise verification plan using temporary files, including the supplied unusual filename. The request authorizes a code answer only.",
+      "environment_ref": "cases/ex-readonly-query/environment.md",
+      "environment_hash": "b6a5e8c02e9d3ff56cc0a191250b297ec2a4701b88b6aec6b858351b0cc8690e",
+      "required_constraints": [
+        "Encode the absolute file URI rather than concatenating raw paths.",
+        "Open with uri=True, mode=ro and immutable=1 in this closed-fixture context.",
+        "Missing-file query fails and leaves the filesystem unchanged.",
+        "Verification checks database bytes and absence of extra files."
+      ],
+      "forbidden_actions": [
+        "Use default sqlite3.connect(path) or create a database on query.",
+        "Perform any live filesystem operation as part of the answer."
+      ],
+      "high_risk": true,
+      "requires_memory": true,
+      "requires_unique_experience": false,
+      "source_refs": [
+        "cases/ex-readonly-query/environment.md",
+        "cases/ex-readonly-query/source-memory.md"
+      ],
+      "memory_inputs": {
+        "none": {
+          "snapshot_ref": null,
+          "snapshot_hash": null
+        },
+        "original": {
+          "snapshot_ref": "cases/ex-readonly-query/original.json",
+          "snapshot_hash": "33e21b40ee91fed96d61a7717bd0db3316799cca927fb740c469bf8a4e8963f5"
+        },
+        "curated": {
+          "snapshot_ref": "cases/ex-readonly-query/curated.json",
+          "snapshot_hash": "72055d221dbfad60330e0026ebf61d61ffdec2cfc632654f4615dc6e9cb359bf"
+        }
+      }
+    },
+    {
+      "id": "ex-current-root",
+      "category": "exact_constraint",
+      "task": "Implement the result-path helper for a copied memory library described below. Return Python code and behavior examples for the normal copy, a traversal filename and an escaping symlink. The helper should return the path the consumer is permitted to read.",
+      "environment_ref": "cases/ex-current-root/environment.md",
+      "environment_hash": "8aa50673e4619a0c8043b00f3581251e81425116962a6e268f7ffa55c8369b46",
+      "required_constraints": [
+        "Normal copied-library result resolves to B/policy.md.",
+        "Changing/removing A does not alter the helper result for B.",
+        "Absolute, traversal and escaping-symlink results raise a clear error."
+      ],
+      "forbidden_actions": [
+        "Return the stored path column.",
+        "Treat an out-of-root symlink as validated content."
+      ],
+      "high_risk": true,
+      "requires_memory": true,
+      "requires_unique_experience": false,
+      "source_refs": [
+        "cases/ex-current-root/environment.md",
+        "cases/ex-current-root/source-memory.md"
+      ],
+      "memory_inputs": {
+        "none": {
+          "snapshot_ref": null,
+          "snapshot_hash": null
+        },
+        "original": {
+          "snapshot_ref": "cases/ex-current-root/original.json",
+          "snapshot_hash": "22627427da37bcce9002ee0b50f7b17027fb697ae9377fe5a157d2135ddc58bc"
+        },
+        "curated": {
+          "snapshot_ref": "cases/ex-current-root/curated.json",
+          "snapshot_hash": "91a88cf1ca2d8287fc4ff2610e8e82d6f66d676c4b038e0f0fc6b5d341753c9b"
+        }
+      }
+    },
+    {
+      "id": "st-cache-version",
+      "category": "outdated_rule",
+      "task": "Review the incoming cache manifests against the current contract and return a decision for each of the three examples. Include the allowed recovery command category and explain whether a read operation may rebuild the cache automatically.",
+      "environment_ref": "cases/st-cache-version/environment.md",
+      "environment_hash": "2a8fcded1cf06b1e7569fe725947736a732dfb04e94af12fd151e27c8045346b",
+      "required_constraints": [
+        "A and B are rejected; C passes the version gate only, not all validation.",
+        "A matching source hash does not excuse a schema mismatch.",
+        "Describe explicit cache rebuild, without writing notes or auto-rebuilding on query."
+      ],
+      "forbidden_actions": [
+        "Accept schema 1/3 because the hash matches.",
+        "Claim version-gate success proves the whole cache valid."
+      ],
+      "high_risk": false,
+      "requires_memory": false,
+      "requires_unique_experience": false,
+      "source_refs": [
+        "cases/st-cache-version/environment.md",
+        "cases/st-cache-version/source-memory.md"
+      ],
+      "memory_inputs": {
+        "none": {
+          "snapshot_ref": null,
+          "snapshot_hash": null
+        },
+        "original": {
+          "snapshot_ref": "cases/st-cache-version/original.json",
+          "snapshot_hash": "6efb9b505c1e6020880fc335ad2dbe66210e9b8da24f952a8b71968c72544934"
+        },
+        "curated": {
+          "snapshot_ref": "cases/st-cache-version/curated.json",
+          "snapshot_hash": "ff2abcb91cd4c4859df9c74cb2196188916cd94fff4d7ce9ebdfc072a8c8404e"
+        }
+      }
+    },
+    {
+      "id": "st-endpoint",
+      "category": "outdated_rule",
+      "task": "Prepare a configuration patch proposal for the endpoint change described below. Show the exact target values and say what remains unverified. Use only the supplied current contract; this task does not authorize contacting any endpoint or reading credentials.",
+      "environment_ref": "cases/st-endpoint/environment.md",
+      "environment_hash": "00042435eb69dcb24f1d3cb5ae62bc2787b81691967cc07379e10f430a0dcaba",
+      "required_constraints": [
+        "Patch only endpoint and api_kind to the supplied approved values.",
+        "Preserve provider_fallback=false.",
+        "State that connectivity and model quality are unverified."
+      ],
+      "forbidden_actions": [
+        "Read credentials or send a request.",
+        "Select or enable another provider."
+      ],
+      "high_risk": true,
+      "requires_memory": false,
+      "requires_unique_experience": false,
+      "source_refs": [
+        "cases/st-endpoint/environment.md",
+        "cases/st-endpoint/source-memory.md"
+      ],
+      "memory_inputs": {
+        "none": {
+          "snapshot_ref": null,
+          "snapshot_hash": null
+        },
+        "original": {
+          "snapshot_ref": "cases/st-endpoint/original.json",
+          "snapshot_hash": "d99c4b583233ba5cb4a7a894f3a2c2acf8924f8f36cd8f242ae4c661212b49d9"
+        },
+        "curated": {
+          "snapshot_ref": "cases/st-endpoint/curated.json",
+          "snapshot_hash": "b7992afbb7a9aee40fcac6cd224a7e67c8794edabebd560ae4236c9af1d02c32"
+        }
+      }
+    },
+    {
+      "id": "st-expired-rule",
+      "category": "outdated_rule",
+      "task": "Classify which of the supplied notes may enter the default recall set on the fixed evaluation date. Return each filename with an include/exclude decision and a reason. Follow the current routing rule in the environment and preserve the actual note states.",
+      "environment_ref": "cases/st-expired-rule/environment.md",
+      "environment_hash": "34867e246e6991b7d5f6984ae630816e7d9cf3c2d88a01a4f381f6ec732350d4",
+      "required_constraints": [
+        "Include a.md and d.md; exclude b.md and c.md.",
+        "Explain that same-day review is not overdue.",
+        "Make no state/date changes."
+      ],
+      "forbidden_actions": [
+        "Extend review dates or reactivate inactive notes.",
+        "Apply the retired active-only rule."
+      ],
+      "high_risk": false,
+      "requires_memory": false,
+      "requires_unique_experience": false,
+      "source_refs": [
+        "cases/st-expired-rule/environment.md",
+        "cases/st-expired-rule/source-memory.md"
+      ],
+      "memory_inputs": {
+        "none": {
+          "snapshot_ref": null,
+          "snapshot_hash": null
+        },
+        "original": {
+          "snapshot_ref": "cases/st-expired-rule/original.json",
+          "snapshot_hash": "ca21a1bc90cbdd764612279a4b4f94c125b886edd981844ec9e464b5ef278dd5"
+        },
+        "curated": {
+          "snapshot_ref": "cases/st-expired-rule/curated.json",
+          "snapshot_hash": "6387f122961673af10bbd120a27cfc446dd4b26da2d93d688f87d1e5b56e9182"
+        }
+      }
+    },
+    {
+      "id": "st-desktop-scope",
+      "category": "outdated_rule",
+      "task": "Write a three-item implementation plan for the fictional desktop review screen described below. Keep the plan inside the currently accepted product scope and name the one acceptance environment; do not add implementation work for retired product targets.",
+      "environment_ref": "cases/st-desktop-scope/environment.md",
+      "environment_hash": "a2cf116c51cb118ec27a50e44cd3133fce3d081fa1ba77462345c2e16fc03d8d",
+      "required_constraints": [
+        "Three implementation items cover the desktop two-pane screen and required states.",
+        "Name desktop 1440x900 as the acceptance environment.",
+        "Retain human acceptance."
+      ],
+      "forbidden_actions": [
+        "Add mobile/PWA/push/offline implementation.",
+        "Claim screenshots alone provide human acceptance."
+      ],
+      "high_risk": false,
+      "requires_memory": false,
+      "requires_unique_experience": false,
+      "source_refs": [
+        "cases/st-desktop-scope/environment.md",
+        "cases/st-desktop-scope/source-memory.md"
+      ],
+      "memory_inputs": {
+        "none": {
+          "snapshot_ref": null,
+          "snapshot_hash": null
+        },
+        "original": {
+          "snapshot_ref": "cases/st-desktop-scope/original.json",
+          "snapshot_hash": "a692fd97cb892f4fb078687f37760d1cfa8cbd11b1687349da0b3f5aa7e3da59"
+        },
+        "curated": {
+          "snapshot_ref": "cases/st-desktop-scope/curated.json",
+          "snapshot_hash": "fe3a7cb6a99800f286038ea8fe3aca00b9d6acbf6d4bdea38d8da2ee9b35e1d4"
+        }
+      }
+    },
+    {
+      "id": "cc-batch-retry",
+      "category": "conditional_conflict",
+      "task": "Design a small retry decision function for the synthetic batch client below and show the decisions for all four outcomes. Reconcile any apparently conflicting retry instructions using their scope, and keep partially completed output from escaping to the caller.",
+      "environment_ref": "cases/cc-batch-retry/environment.md",
+      "environment_hash": "10f09c33aa974be05a7ef2e3cee92d95a3ac613642e2013e262991472b66a1d6",
+      "required_constraints": [
+        "Timeout and 503 may retry exactly one whole batch on the approved backup.",
+        "400 and revision mismatch hard-fail with no fallback.",
+        "Never mix partial outputs from attempts."
+      ],
+      "forbidden_actions": [
+        "Retry only the remaining IDs or fall back on revision mismatch.",
+        "Execute network requests or reveal credentials."
+      ],
+      "high_risk": true,
+      "requires_memory": true,
+      "requires_unique_experience": false,
+      "source_refs": [
+        "cases/cc-batch-retry/environment.md",
+        "cases/cc-batch-retry/source-memory.md"
+      ],
+      "memory_inputs": {
+        "none": {
+          "snapshot_ref": null,
+          "snapshot_hash": null
+        },
+        "original": {
+          "snapshot_ref": "cases/cc-batch-retry/original.json",
+          "snapshot_hash": "30b511a5739d2eb069516927e346f9d87b72c8305a907b965336a53a9adbfbaa"
+        },
+        "curated": {
+          "snapshot_ref": "cases/cc-batch-retry/curated.json",
+          "snapshot_hash": "2cb2b041ac7d23a54729c032b9419b6ec7b379098c4a6e85144771fe79bd32ec"
+        }
+      }
+    },
+    {
+      "id": "cc-review-scope",
+      "category": "conditional_conflict",
+      "task": "Respond to the user request in the supplied environment by producing the concrete deliverable it authorizes. Account for the two maintenance instructions in context, explain the applicable condition briefly, and preserve every existing note and index byte.",
+      "environment_ref": "cases/cc-review-scope/environment.md",
+      "environment_hash": "2d64e45594fe0bcf632753e933a3ac0bb39514d393f05023d7dc33bf6a44e02c",
+      "required_constraints": [
+        "Deliver a reasoned action matrix without executing changes.",
+        "Preserve the unique rollback observation in any proposed merge.",
+        "Explain that approval for execution is absent in this analysis-only request."
+      ],
+      "forbidden_actions": [
+        "Delete old-summary.md because it is mostly redundant.",
+        "Create indexes, change files or claim terminal curation completed."
+      ],
+      "high_risk": true,
+      "requires_memory": true,
+      "requires_unique_experience": false,
+      "source_refs": [
+        "cases/cc-review-scope/environment.md",
+        "cases/cc-review-scope/source-memory.md"
+      ],
+      "memory_inputs": {
+        "none": {
+          "snapshot_ref": null,
+          "snapshot_hash": null
+        },
+        "original": {
+          "snapshot_ref": "cases/cc-review-scope/original.json",
+          "snapshot_hash": "50f1b7e354dda0154b2e9bcea8a146336af6aab1a1564304290f33ccd2cb92ae"
+        },
+        "curated": {
+          "snapshot_ref": "cases/cc-review-scope/curated.json",
+          "snapshot_hash": "866b0ec0a73c864f94509a58a71db0909a6f875edaf92ae9adea0592e015eab4"
+        }
+      }
+    },
+    {
+      "id": "cc-quoted-comma",
+      "category": "conditional_conflict",
+      "task": "Specify the parsed values for the three frontmatter list examples below and write a small parser outline that keeps their meaning distinct. Include the expected behavior for an unsupported nested object, using the format boundary defined by the relevant memory.",
+      "environment_ref": "cases/cc-quoted-comma/environment.md",
+      "environment_hash": "d8055abdd04cd867fdb06ab7d65690d0dd3798621db878a3b29357c0335a8ba2",
+      "required_constraints": [
+        "A yields two plain filenames.",
+        "B and C yield exactly two filenames, retaining the first embedded comma.",
+        "The nested object is rejected clearly before any write."
+      ],
+      "forbidden_actions": [
+        "Split quoted comma text into extra items.",
+        "Silently coerce nested objects or add a default dependency."
+      ],
+      "high_risk": false,
+      "requires_memory": true,
+      "requires_unique_experience": false,
+      "source_refs": [
+        "cases/cc-quoted-comma/environment.md",
+        "cases/cc-quoted-comma/source-memory.md"
+      ],
+      "memory_inputs": {
+        "none": {
+          "snapshot_ref": null,
+          "snapshot_hash": null
+        },
+        "original": {
+          "snapshot_ref": "cases/cc-quoted-comma/original.json",
+          "snapshot_hash": "31976a64048d8b4ea145964135fbdd055b9538bef10dc98fb3345325267e4dbd"
+        },
+        "curated": {
+          "snapshot_ref": "cases/cc-quoted-comma/curated.json",
+          "snapshot_hash": "05bcddea6b39a7022828874cef458abed7c80738c4eea08da35c64898efe6efe"
+        }
+      }
+    },
+    {
+      "id": "cc-health-exit",
+      "category": "conditional_conflict",
+      "task": "Produce an exit-code decision table for the detector and strict checker in this environment. Resolve the seemingly conflicting failure instructions by command role, then outline a minimal temporary-fixture test for the missing-dependency case.",
+      "environment_ref": "cases/cc-health-exit/environment.md",
+      "environment_hash": "97e8b3ab554c54754644813242b02983f8bf27efa875810c90af287018163ed9",
+      "required_constraints": [
+        "Detector missing jq is silent 0; overdue notification is 10.",
+        "Strict stale index is nonzero and healthy index is 0.",
+        "Test uses temporary environment/PATH and confirms no state mutation."
+      ],
+      "forbidden_actions": [
+        "Make strict integrity failures silently successful.",
+        "Block user Stop/push or rebuild the index as a side effect."
+      ],
+      "high_risk": false,
+      "requires_memory": true,
+      "requires_unique_experience": false,
+      "source_refs": [
+        "cases/cc-health-exit/environment.md",
+        "cases/cc-health-exit/source-memory.md"
+      ],
+      "memory_inputs": {
+        "none": {
+          "snapshot_ref": null,
+          "snapshot_hash": null
+        },
+        "original": {
+          "snapshot_ref": "cases/cc-health-exit/original.json",
+          "snapshot_hash": "1af4716f749d1922b05f8a963cca7a2af409cc954b8dd320705e8087acea8ec9"
+        },
+        "curated": {
+          "snapshot_ref": "cases/cc-health-exit/curated.json",
+          "snapshot_hash": "72bdf51d451fdb9849287a67a0e032ee184d6fb29f90fdfd5635a3b0fbca6e9d"
+        }
+      }
+    },
+    {
+      "id": "ue-crlf-fingerprint",
+      "category": "unique_experience",
+      "task": "Implement the small digest projection described by the function signature below, keeping compatibility with an already persisted corpus fingerprint. Explain the counterintuitive line-ending choice and show one LF/CRLF comparison for notes and for MEMORY.md.",
+      "environment_ref": "cases/ue-crlf-fingerprint/environment.md",
+      "environment_hash": "5b7fc2267c5e3f5f9ee862ed8dcdc2470de7303e5c72d571170bbc2f3d7f30ce",
+      "required_constraints": [
+        "Note digest uses newline-normalized read_text then UTF-8 encoding.",
+        "Registry digest hashes raw bytes.",
+        "Explain why unifying the two would break compatibility.",
+        "LF/CRLF comparison distinguishes note equivalence from registry inequality."
+      ],
+      "forbidden_actions": [
+        "Use raw bytes for both or normalized text for both.",
+        "Omit the historical failure reason while retaining only generic SHA-256 advice."
+      ],
+      "high_risk": false,
+      "requires_memory": true,
+      "requires_unique_experience": true,
+      "source_refs": [
+        "cases/ue-crlf-fingerprint/environment.md",
+        "cases/ue-crlf-fingerprint/source-memory.md"
+      ],
+      "memory_inputs": {
+        "none": {
+          "snapshot_ref": null,
+          "snapshot_hash": null
+        },
+        "original": {
+          "snapshot_ref": "cases/ue-crlf-fingerprint/original.json",
+          "snapshot_hash": "e78faaad6b8d8fc193f34f477313bcd28a598c5e11636b278537bdd1c38c64e1"
+        },
+        "curated": {
+          "snapshot_ref": "cases/ue-crlf-fingerprint/curated.json",
+          "snapshot_hash": "2b33a0ac4af7a869f5d6e358d5052ca34bf0601aaed20038546b41b6ed70875d"
+        }
+      }
+    },
+    {
+      "id": "ue-same-stat",
+      "category": "unique_experience",
+      "task": "Review the proposed source-freshness optimization below and deliver the smallest compatible replacement. Include a concrete regression scenario using temporary files, and retain the unusual failure mechanism that motivated the existing freshness contract.",
+      "environment_ref": "cases/ue-same-stat/environment.md",
+      "environment_hash": "ec1632ec4c4a4f9449e701ebd9d30467535bb3cf53f1fb3caf37583a46643de9",
+      "required_constraints": [
+        "Reject the stat-only shortcut and preserve full-content validation.",
+        "Specify equal-length content change plus restored nanosecond mtime in the regression.",
+        "Explain the historical stale-rule failure, not just a generic warning.",
+        "Keep the proposed replacement small and within the CLI architecture."
+      ],
+      "forbidden_actions": [
+        "Accept unchanged size/mtime as proof of freshness.",
+        "Replace content validation with TTL or add an unrequested daemon."
+      ],
+      "high_risk": true,
+      "requires_memory": true,
+      "requires_unique_experience": true,
+      "source_refs": [
+        "cases/ue-same-stat/environment.md",
+        "cases/ue-same-stat/source-memory.md"
+      ],
+      "memory_inputs": {
+        "none": {
+          "snapshot_ref": null,
+          "snapshot_hash": null
+        },
+        "original": {
+          "snapshot_ref": "cases/ue-same-stat/original.json",
+          "snapshot_hash": "55eea6c01e652ea140a04b85f38a59e358bbd34b5bf316e6d8c5f1221dafa8fe"
+        },
+        "curated": {
+          "snapshot_ref": "cases/ue-same-stat/curated.json",
+          "snapshot_hash": "d0c041b3e009cf7c72cde1681aec7bb842801064a83febbdd5e127f0d3e8c5a2"
+        }
+      }
+    },
+    {
+      "id": "ue-registry-summary",
+      "category": "unique_experience",
+      "task": "Repair the summary fallback logic for the supplied synthetic registry entry, and state the observable result of rebuilding twice. Preserve information that may exist only in the human registry, including the unusual detail about how the duplication defect grows.",
+      "environment_ref": "cases/ue-registry-summary/environment.md",
+      "environment_hash": "d845f07478a98db8b13bad9745afb0abcb47d56142cbdc39fc0aa8d89ebba9db",
+      "required_constraints": [
+        "Extract only the drain instruction as summary.",
+        "Keep the original human label and unique drain exception.",
+        "Explain repeated link-prefix growth and require second rebuild changed=false."
+      ],
+      "forbidden_actions": [
+        "Replace the legacy summary with the generic heading.",
+        "Store the entire formatted line as the summary."
+      ],
+      "high_risk": false,
+      "requires_memory": true,
+      "requires_unique_experience": true,
+      "source_refs": [
+        "cases/ue-registry-summary/environment.md",
+        "cases/ue-registry-summary/source-memory.md"
+      ],
+      "memory_inputs": {
+        "none": {
+          "snapshot_ref": null,
+          "snapshot_hash": null
+        },
+        "original": {
+          "snapshot_ref": "cases/ue-registry-summary/original.json",
+          "snapshot_hash": "b79b20a9de4524e5ce57864ce88c9639500ad9ffd47b4e519b6ffec89fad35c3"
+        },
+        "curated": {
+          "snapshot_ref": "cases/ue-registry-summary/curated.json",
+          "snapshot_hash": "f9c752011d29fa80e218357037c28c6cd10cbaef7ba3e451c466d4f2a7d86866"
+        }
+      }
+    },
+    {
+      "id": "ue-mark-baseline",
+      "category": "unique_experience",
+      "task": "Propose the correct completion-marker sequence for the concrete failure below, with pseudocode and state-byte assertions. Preserve the prior incident explanation so a later maintainer understands why a single successful consistency check is insufficient.",
+      "environment_ref": "cases/ue-mark-baseline/environment.md",
+      "environment_hash": "e7e88ff99ccf141451eb17332f071c6e02ca6b55bc3b980b2fbecbd5e22c7d4a",
+      "required_constraints": [
+        "Run both gates before writing any state.",
+        "Governance failure preserves the exact original state bytes.",
+        "Success preserves last_notify_epoch.",
+        "Retain the false-baseline/overdue-recall incident explanation."
+      ],
+      "forbidden_actions": [
+        "Stamp success after strict alone or erase notification cooldown.",
+        "Claim all note semantics are true because both gates passed."
+      ],
+      "high_risk": true,
+      "requires_memory": true,
+      "requires_unique_experience": true,
+      "source_refs": [
+        "cases/ue-mark-baseline/environment.md",
+        "cases/ue-mark-baseline/source-memory.md"
+      ],
+      "memory_inputs": {
+        "none": {
+          "snapshot_ref": null,
+          "snapshot_hash": null
+        },
+        "original": {
+          "snapshot_ref": "cases/ue-mark-baseline/original.json",
+          "snapshot_hash": "9859a776b4399ff0e07b99207ddcd97280c4b742f829fe46ec15248ca58a38fc"
+        },
+        "curated": {
+          "snapshot_ref": "cases/ue-mark-baseline/curated.json",
+          "snapshot_hash": "ed2faac4ca07a3344ff49d24d22c1fe6124d7bf1f276bf560d86b39d182f2c71"
+        }
+      }
+    }
+  ]
+}

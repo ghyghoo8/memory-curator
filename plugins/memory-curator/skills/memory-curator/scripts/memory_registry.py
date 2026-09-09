@@ -4,9 +4,9 @@
 from __future__ import annotations
 
 import argparse
+from collections import Counter
 import os
 import re
-import stat
 import sys
 import tempfile
 from pathlib import Path
@@ -17,6 +17,7 @@ if str(SCRIPT_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPT_DIR))
 
 import memory_index
+from memory_metadata import _copy_file_metadata
 
 
 LINK_RE = re.compile(r"^\s*-\s+\[([^]]+)\]\(([^)]+\.md)\)")
@@ -50,6 +51,12 @@ def render_registry(memory_dir: Path) -> str:
         selected = [note for note in notes if note.get("status") == status]
         sections.append((status.capitalize(), selected))
 
+    classified = Counter(str(note["file"]) for _, group in sections for note in group)
+    expected = Counter(str(note["file"]) for note in notes)
+    if classified != expected:
+        files = sorted((expected - classified) | (classified - expected))
+        raise ValueError("cannot classify notes; review layer/status before rebuilding: " + ", ".join(files))
+
     lines = [
         "# Project Memory Registry",
         "",
@@ -67,15 +74,22 @@ def render_registry(memory_dir: Path) -> str:
             label = labels.get(filename) or str(note.get("name") or Path(filename).stem)
             summary = str(note.get("summary", "")).replace("\n", " ").strip()
             lines.append(f"- [{label}]({filename}) — {summary}")
-    return "\n".join(lines) + "\n"
+    rendered = "\n".join(lines) + "\n"
+    linked = Counter(
+        match.group(1) for line in lines
+        if (match := memory_index.INDEX_LINK_RE.match(line))
+    )
+    if linked != expected:
+        raise ValueError("rendered registry does not cover each note exactly once")
+    return rendered
 
 
 def write_registry(memory_dir: Path, *, apply: bool) -> dict[str, object]:
     memory_dir = memory_dir.resolve()
     target = memory_dir / "MEMORY.md"
+    before = target.read_bytes() if target.exists() else None
     rendered = render_registry(memory_dir)
-    before = target.read_text(encoding="utf-8") if target.exists() else ""
-    changed = before != rendered
+    changed = before != rendered.encode("utf-8")
     if apply and changed:
         fd, temporary = tempfile.mkstemp(prefix=".MEMORY.md.", dir=memory_dir)
         try:
@@ -83,16 +97,12 @@ def write_registry(memory_dir: Path, *, apply: bool) -> dict[str, object]:
                 handle.write(rendered)
                 handle.flush()
                 os.fsync(handle.fileno())
-            if target.exists():
-                os.chmod(temporary, stat.S_IMODE(target.stat().st_mode))
-                if hasattr(os, "listxattr"):
-                    for name in os.listxattr(target):
-                        try:
-                            os.setxattr(temporary, name, os.getxattr(target, name))
-                        except OSError:
-                            pass
-                if target.read_text(encoding="utf-8") != before:
-                    raise RuntimeError("MEMORY.md changed during rebuild; refusing stale overwrite")
+            if (target.read_bytes() if target.exists() else None) != before:
+                raise RuntimeError("MEMORY.md changed during rebuild; refusing stale overwrite")
+            if before is not None:
+                _copy_file_metadata(target, Path(temporary))
+            if (target.read_bytes() if target.exists() else None) != before:
+                raise RuntimeError("MEMORY.md changed during rebuild; refusing stale overwrite")
             os.replace(temporary, target)
         finally:
             if os.path.exists(temporary):

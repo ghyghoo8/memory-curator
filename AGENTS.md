@@ -30,11 +30,15 @@ inside the markdown files.
   `inventory-memory.sh` prints a compact live inventory, `build-index.sh` creates
   `.curator-index.json`, `check-index.sh` strictly enforces note/MEMORY.md/JSON content
   consistency, `governance-check.sh` validates lifecycle metadata, `route-memory.sh` selects
-  `preflight-memory.sh` blocks unreviewed duplicate/conflicting candidate notes,
-  the top relevant notes for Chinese or English queries, `memory_search.py` maintains the
+  the top relevant notes for Chinese or English queries, `preflight-memory.sh` requires
+  review of exact duplicates or high-similarity candidates, `memory_search.py` maintains the
   disposable FTS5/JSON-vector sidecar, `memory_benchmark.py` compares retrieval adapters, and
   `memory_metadata.py` / `memory_registry.py` apply explicit governance manifests and rebuild
-  the human registry, while `mark-curated.sh` records the baseline only after the strict gate passes.
+  the human registry. `memory_frontmatter.py` supplies their shared finite grammar;
+  `memory_outcomes.py` aggregates fixed offline task records without executing models.
+  `embedding_api_adapter.py` explicitly connects project `.env` configuration to
+  OpenAI-compatible `/embeddings` or native BGE `/embed`; API Key is optional.
+  `mark-curated.sh` records the baseline only after strict and governance gates pass.
 - `plugins/memory-curator/skills/memory-curator/poc/tencentdb-agent-memory/` — pinned,
   isolated TencentDB Agent Memory evaluation assets.
   POC checkouts, dependencies, data, and logs live only under ignored `.tmp/`.
@@ -50,6 +54,7 @@ inside the markdown files.
   `./.codex/skills/` (with `--project`); `--with-claude-hooks` additionally merges legacy Claude
   hook entries into `settings.json` via jq.
 - `README.md` — user-facing rationale and install/usage docs (bilingual zh/en).
+- [.codex/plans/iteration-development.md](.codex/plans/iteration-development.md) — canonical development handoff for the reliability, performance, and task-benefit iterations. It contains contracts, dependencies, and implementation/acceptance evidence; unchecked items are not verified completion claims.
 
 Editing principle: edit the canonical files under
 `plugins/memory-curator/skills/memory-curator/`; keep `SKILL.md` short (frontmatter is a context

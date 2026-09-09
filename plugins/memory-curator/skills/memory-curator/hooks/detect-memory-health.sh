@@ -11,6 +11,8 @@ ROOT_DIR="$(cd "$SELF_DIR/.." && pwd)"
 . "$SELF_DIR/curator-lib.sh"
 
 CWD="${1:-$PWD}"
+command -v python3 >/dev/null 2>&1 || exit 0
+command -v jq >/dev/null 2>&1 || exit 0
 
 # ---- 阈值（env 覆盖）----
 MAX_NOTES="${CURATOR_MAX_NOTES:-30}"        # 允许的记忆条数上限；超过才触发
@@ -46,9 +48,13 @@ if [[ -f MEMORY.md ]]; then
   [[ "$orphans" -gt 0 ]] && reasons+=("孤儿 $orphans")
 fi
 
-# ①b 机器索引漂移（索引是 cache；存在时必须和文件/MEMORY.md 同步）
-if [[ -f .curator-index.json && -x "$ROOT_DIR/scripts/check-index.sh" ]]; then
-  "$ROOT_DIR/scripts/check-index.sh" --memory-dir "$MEM_DIR" >/dev/null 2>&1 || reasons+=("机器索引不一致")
+# ①b 一次解析同时检查 cache 和 active 到期日期，不再另起全库 governance 扫描。
+if health="$("$ROOT_DIR/scripts/inventory-memory.sh" --memory-dir "$MEM_DIR" --health 2>/dev/null)"; then
+  [[ "$(printf '%s' "$health" | jq '.index_issues | length')" -gt 0 ]] && reasons+=("机器索引不一致")
+  overdue="$(printf '%s' "$health" | jq '.overdue_files | length')"
+  [[ "$overdue" -gt 0 ]] && reasons+=("active 记忆到期 $overdue 条")
+else
+  reasons+=("记忆元数据无法解析")
 fi
 
 # ② 时效线索词命中文件数

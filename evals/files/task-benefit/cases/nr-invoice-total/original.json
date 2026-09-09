@@ -1,0 +1,7 @@
+{
+  "snapshot_schema_version": 1,
+  "injected_content": "# Unrelated sample-store rule\nThe fictional old Northstar catalog had free shipping on every order and rounded item prices to whole dollars before totaling. Those rules were restricted to a past demonstration store.\n",
+  "source_files": [
+    "cases/nr-invoice-total/source-memory.md"
+  ]
+}

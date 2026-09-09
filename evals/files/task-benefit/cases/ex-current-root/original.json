@@ -1,0 +1,7 @@
+{
+  "snapshot_schema_version": 1,
+  "injected_content": "# Result provenance contract\nConstruct output paths from the caller's current library root and validated relative filename. Reject absolute filenames, directory traversal and symlinks resolving outside the current root. The database's stored absolute path is historical metadata and never an authority after copying.\n\n# Old example output\nA historical example displayed /old/A/policy.md because A was the current root in that run.\n",
+  "source_files": [
+    "cases/ex-current-root/source-memory.md"
+  ]
+}

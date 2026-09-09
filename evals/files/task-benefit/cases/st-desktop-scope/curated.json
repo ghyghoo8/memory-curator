@@ -1,0 +1,8 @@
+{
+  "snapshot_schema_version": 1,
+  "injected_content": "# Accepted desktop scope\nBuild the two-pane list/detail screen and its selection, empty and save-failure states for 1440x900 desktop use. Human desktop acceptance remains required. Mobile/PWA/offline sync/push work and replacement of human acceptance are outside this plan.\n",
+  "source_files": [
+    "cases/st-desktop-scope/source-memory.md",
+    "cases/st-desktop-scope/environment.md"
+  ]
+}

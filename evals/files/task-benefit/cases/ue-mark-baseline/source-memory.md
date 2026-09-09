@@ -1,0 +1,2 @@
+# False-completion baseline incident
+A prior run stamped curation after strict passed although governance failed. The overdue active note then vanished from default recall while the detector saw a fresh baseline and produced no useful reminder. Completion must require strict AND governance. If either fails, leave the state file byte-identical. On genuine success, update curation keys while retaining last_notify_epoch so notification cooldown remains meaningful.

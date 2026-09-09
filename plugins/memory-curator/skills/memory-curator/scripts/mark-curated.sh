@@ -13,7 +13,8 @@ MEM_DIR="$(resolve_memory_dir "$CWD")" || {
   exit 2
 }
 
-"$SELF_DIR/check-index.sh" --memory-dir "$MEM_DIR" >/dev/null
+"$SELF_DIR/check-index.sh" --memory-dir "$MEM_DIR"
+"$SELF_DIR/governance-check.sh" --memory-dir "$MEM_DIR"
 state_set "$MEM_DIR" last_curation_epoch "$(now_epoch)"
 
 if sha="$(git -C "$MEM_DIR" rev-parse HEAD 2>/dev/null)"; then

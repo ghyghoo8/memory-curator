@@ -1,0 +1,8 @@
+{
+  "snapshot_schema_version": 1,
+  "injected_content": "# Read-only report connection\nUse path.resolve().as_uri() and append ?mode=ro&immutable=1, with sqlite3.connect(..., uri=True). The fixture has no active writer or WAL. Missing DB must fail without creating it. Verify spaces, Chinese, #, ?, % and directory/byte invariance. The importer's create mode does not apply.\n",
+  "source_files": [
+    "cases/ex-readonly-query/source-memory.md",
+    "cases/ex-readonly-query/environment.md"
+  ]
+}

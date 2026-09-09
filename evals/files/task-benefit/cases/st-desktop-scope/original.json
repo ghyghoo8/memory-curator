@@ -1,0 +1,7 @@
+{
+  "snapshot_schema_version": 1,
+  "injected_content": "# Retired launch idea\nThe old concept was mobile-first: start with a bottom navigation bar, installable PWA, offline sync and push reminders. It also assumed automated screenshots could replace the human acceptance decision. The concept was never the accepted desktop scope.\n",
+  "source_files": [
+    "cases/st-desktop-scope/source-memory.md"
+  ]
+}

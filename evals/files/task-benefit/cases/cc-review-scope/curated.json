@@ -1,0 +1,8 @@
+{
+  "snapshot_schema_version": 1,
+  "injected_content": "# Applicable phase: analysis only\nThe present user explicitly requested an audit without edits. Produce a reviewable action matrix and preserve all bytes. Keep the unique rollback observation when proposing any merge. Paired note/registry writes and terminal checks apply only after a concrete action list is authorized.\n",
+  "source_files": [
+    "cases/cc-review-scope/source-memory.md",
+    "cases/cc-review-scope/environment.md"
+  ]
+}

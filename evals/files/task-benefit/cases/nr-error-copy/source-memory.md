@@ -1,0 +1,2 @@
+# Unrelated support runbook
+The fictional offline-first Cedar mobile app queues all failed saves in a background recovery daemon. Its copy says "已安全保存在设备，稍后自动同步" and may show queue worker IDs to its developer audience. None of this describes the draft editor in the present task.

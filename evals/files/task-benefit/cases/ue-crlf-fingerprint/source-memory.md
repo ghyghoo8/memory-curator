@@ -1,0 +1,2 @@
+# Compatibility incident: two intentionally different hash inputs
+Persisted note digests were made by path.read_text(encoding="utf-8"), then UTF-8 encoding the returned text; Python's universal newline normalization makes equivalent CRLF/LF notes hash equally. MEMORY.md was hashed from read_bytes(), so its CRLF/LF bytes intentionally hash differently. A prior cleanup that unified both to raw bytes invalidated caches unexpectedly. Preserve this asymmetry when extracting a faster fingerprint helper.

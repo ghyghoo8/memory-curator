@@ -1,0 +1,2 @@
+# Registry fallback incident
+Without a description, a fallback once returned the full registry line. Each rebuild wrapped that line in another link prefix, making the index grow repeatedly. Extract only the meaningful text after the existing link/separator while preserving the user's label. Do not discard legacy registry text: in some libraries it is the only copy of an operational exception. The second unchanged rebuild must be byte-identical and report changed=false.

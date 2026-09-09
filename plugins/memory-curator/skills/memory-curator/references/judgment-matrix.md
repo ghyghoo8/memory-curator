@@ -117,8 +117,8 @@ CURATOR_MEMORY_DIR=<memory_dir> <skill_dir>/hooks/detect-memory-health.sh "$PWD"
 | `type` | user / feedback / project / reference |
 | `layer/domain` | L0-L3 分层与领域过滤 |
 | `status` | active / stale / superseded / archived |
-| `stability` | stable / time-sensitive / temporary |
-| `freshness` | timeless / time-sensitive / unknown |
+| `stability` | stable / time-sensitive / temporary / volatile |
+| `freshness` | timeless / stable / time-sensitive |
 | `risk` | normal / high-if-wrong |
 | `scope/entities` | router 主匹配面,避免读全文 |
 | `supersedes/superseded_by` | 矛盾和替代关系 |
@@ -144,12 +144,12 @@ CURATOR_MEMORY_DIR=<memory_dir> <skill_dir>/hooks/detect-memory-health.sh "$PWD"
 name: <kebab-case-slug>
 description: <一行摘要，用于召回相关性判断>
 metadata:
-  layer: L1 | L2 | L3
+  layer: L0 | L1 | L2 | L3
   type: user | feedback | project | reference
   domain: <stable-domain>
   status: active | stale | superseded | archived
-  stability: stable | time-sensitive | temporary
-  freshness: timeless | time-sensitive | unknown
+  stability: stable | time-sensitive | temporary | volatile
+  freshness: timeless | stable | time-sensitive
   risk: normal | high-if-wrong
   scope: [<router-keyword>]
   entities: [<domain-term>]
@@ -165,6 +165,34 @@ metadata:
 
 <用 [[other-name]] 链接相关记忆。>
 ```
+
+上面是字段选项说明，`|` 表示选择一个值，不能整行照抄。L0–L3 是注册表分类与排序层（按 L3→L0 展示），不代表事实可信等级；项目需自行明确业务含义，未分类的 active note 会阻止注册表覆盖。`unknown` 只供旧数据诊断，不通过治理门禁。
+
+以下 `working-agreement.md` 是可直接通过治理门禁的最小实例；同时在 `MEMORY.md` 写入 `- [Working agreement](working-agreement.md) — Record reasons with decisions.`，再执行 build/check/governance/mark：
+
+```markdown
+---
+name: working-agreement
+description: Record reasons with decisions.
+metadata:
+  layer: L1
+  type: project
+  domain: engineering
+  status: active
+  stability: stable
+  freshness: timeless
+  risk: normal
+  review_after: null
+  scope: [decisions]
+  entities: []
+---
+
+Record the reason with each durable decision.
+**Why:** Future work needs to distinguish constraints from past choices.
+**How to apply:** Include the condition and reason when updating a decision.
+```
+
+`metadata` 中显式 `null` 或 `[]` 会清除旧顶层值；只有字段缺失时才读取旧顶层值。允许标量、单行 flow list、block list 和一级 metadata；quoted comma、注释、LF/CRLF 均支持。重复 key、嵌套集合、anchor、tag、block scalar 明确拒绝并报告文件与行号。writer 保留未修改字段、正文及换行；非空必填字段设为 null 后会被治理门禁拒绝。
 
 - **一文件一事实**;别把多个事实塞一条。
 - **MEMORY.md**:每条一行 `- [标题](file.md) — 钩子摘要`,不放正文。

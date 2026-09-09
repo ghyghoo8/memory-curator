@@ -25,6 +25,7 @@ import memory_index
 
 
 DEFAULT_DB_RELATIVE = Path(".index") / "memory.sqlite"
+SEARCH_SCHEMA_VERSION = 2
 LOCAL_HASH_DIMENSIONS = 256
 RRF_K = 60
 EMBEDDING_MAX_INPUT_CHARS = 8000
@@ -343,7 +344,8 @@ def build_search_index(
                     )
 
         manifest = {
-            "schema_version": "1",
+            "schema_version": str(SEARCH_SCHEMA_VERSION),
+            "source_index_schema": str(memory_index.SCHEMA_VERSION),
             "corpus_hash": _corpus_hash(index),
             "provider": provider,
             "dimensions": str(dimensions if provider != "none" else 0),
@@ -511,11 +513,16 @@ def search_memory(
         raise ValueError("limit must be between 1 and 100")
     # The derived sidecar is immutable between explicit rebuilds. immutable=1
     # prevents SQLite from trying to create WAL/SHM files during read-only recall.
-    conn = sqlite3.connect(f"file:{db_path}?mode=ro&immutable=1", uri=True)
+    conn = sqlite3.connect(db_path.as_uri() + "?mode=ro&immutable=1", uri=True)
     conn.row_factory = sqlite3.Row
     try:
         manifest = dict(conn.execute("SELECT key,value FROM manifest"))
-        current_hash = _corpus_hash(memory_index.build_index(memory_dir))
+        if (
+            manifest.get("schema_version") != str(SEARCH_SCHEMA_VERSION)
+            or manifest.get("source_index_schema") != str(memory_index.SCHEMA_VERSION)
+        ):
+            raise RuntimeError("search index schema is stale or invalid; explicitly rebuild it")
+        current_hash = memory_index.current_corpus_fingerprint(memory_dir)
         if manifest.get("corpus_hash") != current_hash:
             raise RuntimeError("search index is stale; rebuild it from Markdown truth")
 
@@ -527,18 +534,17 @@ def search_memory(
             freshness=freshness,
             risks=risks,
         )
-        keyword = _keyword_ranked(
-            conn, query, candidate_limit, filter_sql, filter_params
-        )
-        vector = _vector_ranked(
-            conn,
-            query,
-            candidate_limit,
-            filter_sql,
-            filter_params,
-            embedding_command,
-            embedding_timeout,
-        )
+        keyword = []
+        vector = []
+        if strategy in {"keyword", "hybrid"}:
+            keyword = _keyword_ranked(
+                conn, query, candidate_limit, filter_sql, filter_params
+            )
+        if strategy in {"vector", "hybrid"}:
+            vector = _vector_ranked(
+                conn, query, candidate_limit, filter_sql, filter_params,
+                embedding_command, embedding_timeout,
+            )
         degraded_from = None
         warning = ""
         strategy_used = strategy
@@ -546,6 +552,10 @@ def search_memory(
             degraded_from = strategy
             strategy_used = "keyword"
             warning = "no vector index; explicitly degraded to keyword"
+            if strategy == "vector":
+                keyword = _keyword_ranked(
+                    conn, query, candidate_limit, filter_sql, filter_params
+                )
 
         if strategy_used == "keyword":
             ranked = [(filename, -score, ["keyword"]) for filename, score in keyword]
@@ -559,10 +569,13 @@ def search_memory(
             row = conn.execute("SELECT * FROM notes WHERE file=?", (filename,)).fetchone()
             if row is None:
                 continue
+            path = (memory_dir / filename).resolve()
+            if Path(filename).name != filename or path.parent != memory_dir:
+                raise RuntimeError(f"search result is outside the memory directory: {filename}")
             results.append(
                 {
                     "file": filename,
-                    "path": row["path"],
+                    "path": str(path),
                     "name": row["name"],
                     "summary": row["summary"],
                     "status": row["status"],

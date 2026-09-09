@@ -1,0 +1,8 @@
+{
+  "snapshot_schema_version": 1,
+  "injected_content": "# Approved fictional Coding configuration\nSet endpoint=https://coding.example.invalid/v1 and api_kind=coding. Keep provider_fallback=false. This task is a patch proposal only: no credential access, network probe or automatic provider substitution. Connectivity and quality remain unverified.\n",
+  "source_files": [
+    "cases/st-endpoint/source-memory.md",
+    "cases/st-endpoint/environment.md"
+  ]
+}

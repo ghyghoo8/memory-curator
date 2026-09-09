@@ -1,0 +1,8 @@
+{
+  "snapshot_schema_version": 1,
+  "injected_content": "# Current-root result provenance\nResolve a result only under current_root using its relative file field. Ignore the stored absolute path. Reject absolute paths, .. traversal and any symlink whose resolved target escapes current_root. A copied B library must return B paths even if A is deleted or changed.\n",
+  "source_files": [
+    "cases/ex-current-root/source-memory.md",
+    "cases/ex-current-root/environment.md"
+  ]
+}

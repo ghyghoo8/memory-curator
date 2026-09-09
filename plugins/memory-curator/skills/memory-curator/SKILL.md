@@ -135,36 +135,9 @@ find ~/.claude/projects -maxdepth 3 -path '*/memory/MEMORY.md' 2>/dev/null
 CURATOR_MEMORY_DIR=<memory_dir> <skill_dir>/scripts/mark-curated.sh
 ```
 
-通过标准:**note 文件数 == `MEMORY.md` 条目数 == JSON notes 数、无死链、无孤儿、source hash 无漂移,且 strict check 与治理门禁都通过**。只有通过后才运行 `mark-curated.sh`;它会保留 `last_notify_epoch` 等其它 state key。
+通过标准:**note 文件数 == `MEMORY.md` 条目数 == JSON notes 数、无死链、无孤儿、source hash 无漂移,且 strict check 与治理门禁都通过**。`mark-curated.sh` 自身先执行 strict 与治理门禁，任一失败都不会更新完成状态；通过后保留 `last_notify_epoch` 等其它 state key。
 
-可选召回侧车在治理通过后显式重建。`local-hash` 只用于零网络、可复现的
-回归基线，不等同于真实语义 embedding：
-
-```bash
-<skill_dir>/scripts/build-search-index.sh --memory-dir <memory_dir> --provider local-hash
-<skill_dir>/scripts/search-memory.sh --memory-dir <memory_dir> --strategy hybrid "查询"
-```
-
-启用真实语义 embedding 时，优先使用已有的 **API + Key**，由受信任的项目
-command adapter 调用；项目 adapter 的通用环境变量统一为 `EMBEDDING_API_KEY`、
-`EMBEDDING_BASE_URL`、`EMBEDDING_MODEL`，不使用 provider-specific 旧变量。
-`memory-curator` 本身不读取、输出或持久化 API Key，默认只发送 summary：
-
-```bash
-<skill_dir>/scripts/build-search-index.sh \
-  --memory-dir <memory_dir> --db <semantic.sqlite> \
-  --provider command --embedding-content summary \
-  --embedding-command '<trusted-adapter-command>'
-```
-
-本地 BGE-M3 仅作为禁止数据外发、需要离线运行、或远程 API 不可用时的可选
-方案，不是默认依赖；不要为了常规使用自动下载模型。API 配置优先级不改变项目的
-检索路由决策：若 benchmark 尚未证明 semantic 更优，仍可保持 keyword 为默认路由。
-
-若无向量索引，hybrid/vector 必须显式报告降级，不能把 keyword fallback 当作混合检索成绩。
-真实语义 embedding 只能通过显式受信任 command adapter 接入；远程服务会接收
-note 内容，必须先完成数据外发授权。provider/model/dimensions 不匹配或 adapter
-失败时硬失败，不得自动切到 local-hash/FeatureHashing 后仍按 semantic 计分。
+可选 FTS5/向量侧车在治理通过后显式重建，命令和配置见 [embedding adapter 参考](references/embedding-adapters.md)。远程 adapter 会接收记忆内容，必须先取得外发授权；默认仅发送 summary。provider/model/fingerprint/dimensions 不一致或 adapter 失败时硬失败，不自动换模型。缺少向量时必须显式标记 keyword 降级；local-hash 只是零网络回归基线。普通路由不自动启用模型。
 
 ---
 
@@ -172,6 +145,6 @@ note 内容，必须先完成数据外发授权。provider/model/dimensions 不�
 
 维护中若要新增/改写记忆,遵循一文件一事实 + frontmatter(`name`/`description`/`metadata.layer/type/domain/status/freshness/stability/risk`)+ MEMORY.md 一行一指针;time-sensitive 必须设 `review_after`;high-if-wrong 必须有 `evidence_refs` 或复核日期;feedback/project 类正文带 **Why** + **How to apply**;用 `[[name]]` 互链。详见 `references/judgment-matrix.md` 的"健康记忆形态"。
 
-写入前必须对候选文件运行 `preflight-memory.sh --memory-dir <memory_dir> --candidate <candidate.md>`。精确重复或高相似反向规则会非零退出；读取候选正文后，确认确需并存才传 `--acknowledge`，需要审计时同时写 `--receipt`。若已有同主题记忆,更新旧文件而不是新增,避免碎片化和未来 token 膨胀。
+写入前必须对候选文件运行 `preflight-memory.sh --memory-dir <memory_dir> --candidate <candidate.md>`。精确重复或任意高相似候选会非零退出并列出逐文件复核原因；启发式未命中不等于没有语义冲突。读取候选正文后，确认确需并存才传 `--acknowledge`，需要审计时同时写 `--receipt`。凭据绑定 candidate/corpus hash，仅作审计记录；acknowledge 后保留原复核原因。若已有同主题记忆,更新旧文件而不是新增,避免碎片化和未来 token 膨胀。
 
 > 触发时机建议:大改动后顺手 / 感觉记忆变多或自相矛盾时主动跑,不必等用户每次提醒。

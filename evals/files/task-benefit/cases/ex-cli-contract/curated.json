@@ -1,0 +1,8 @@
+{
+  "snapshot_schema_version": 1,
+  "injected_content": "# memory-list consumer contract\nEmit exactly one JSON object {\"files\": [...]} to stdout on success; exit 0. Diagnostics only on stderr. --limit defaults to 3 and accepts integers 1 through 20 inclusive. Invalid values, missing values and unknown arguments exit 2 with empty stdout. The human-only importer's progress output does not apply.\n",
+  "source_files": [
+    "cases/ex-cli-contract/source-memory.md",
+    "cases/ex-cli-contract/environment.md"
+  ]
+}
