@@ -1,7 +1,9 @@
-# Memory 缓存与检索架构
+# Memory 存储、缓存与检索架构
 
-本文说明 `memory-curator` 当前的记忆存储、派生缓存、检索和一致性机制。
-它描述的是已经实现的行为，不把实验性 POC 或后续设想写成当前能力。
+本文说明 `memory-curator` 的文件记忆缓存与检索机制，以及通过现有 MCP
+和可用的 `hindsight-memory` skill 使用 Hindsight 项目 bank 的策展边界。
+两者共享过期、重复、冲突和证据判断，分别执行与验收；本项目不实现 Hindsight
+服务、SDK 或同步器。实验性 POC 与任务收益须由各自证据支持。
 
 ## 设计目标
 
@@ -9,13 +11,13 @@
 
 1. **可信**：过期缓存、孤儿文件和失效链接不能悄悄参与后续判断。
 2. **节省上下文**：普通任务只读取最相关的少量记忆，不把整个记忆库放进模型上下文。
-3. **可恢复**：所有机器索引都能由 Markdown 重建，索引损坏不会损失原始记忆。
+3. **可恢复**：文件路径的机器索引都能由 Markdown 重建，索引损坏不会损失原始记忆；Hindsight 依赖其原生记录与生命周期读回。
 
-因此，当前实现不是通用意义上的 TTL、LRU 或自动写穿缓存，而是：
+文件路径采用：
 
 > Markdown 真相源 + 内容哈希失效 + 显式重建的派生索引。
 
-## 总体结构
+## 文件路径总体结构
 
 ```mermaid
 flowchart TD
@@ -52,7 +54,7 @@ flowchart TD
 | 搜索侧车 | `<memory_dir>/.index/memory.sqlite` | FTS5、向量和混合召回 | 否 | 是 |
 | 运行状态 | `<memory_dir>/.curator-state` | 上次策展、Git 基线和提醒冷却 | 否 | 是，但会丢失提醒基线 |
 
-## 真相源
+## 文件真相源
 
 每条记忆保存为一个 Markdown 文件；`MEMORY.md` 保存这些文件的人类可读指针。
 任何检索数据库、向量或 JSON 索引都不能反向成为记忆事实的权威来源。
@@ -196,7 +198,7 @@ strict check 保留完整派生字段比较与重复项检查，文件集合查�
 
 ## 读取时序
 
-普通任务的推荐路径：
+文件库普通任务的推荐路径：
 
 ```mermaid
 sequenceDiagram
@@ -284,7 +286,7 @@ CURATOR_MEMORY_DIR=<memory_dir> ./scripts/mark-curated.sh
 
 ## 关键保证与边界
 
-### 当前保证
+### 文件路径当前保证
 
 - Markdown 永远是可审阅、可版本控制的真相源；
 - 陈旧持久化缓存不会被静默使用；
@@ -294,7 +296,7 @@ CURATOR_MEMORY_DIR=<memory_dir> ./scripts/mark-curated.sh
 - 缺少向量时的降级是显式、可观测的；
 - 探测器和兼容 hooks 只提醒，不自动删除或修改记忆。
 
-### 当前边界
+### 文件路径当前边界
 
 - 没有后台常驻进程、自动刷新或文件监听；
 - 没有 TTL、LRU 或容量驱逐策略；`review_after` 是记忆治理日期，不是缓存 TTL；
@@ -306,7 +308,60 @@ CURATOR_MEMORY_DIR=<memory_dir> ./scripts/mark-curated.sh
 这些边界是当前“简单、确定、可审计”设计的结果。只有 benchmark 或实际规模证明
 整体重建、确定性路由成为瓶颈时，才应考虑文件监听、增量索引或更复杂的缓存策略。
 
-## 代码入口
+## Hindsight 路径与策展边界
+
+Hindsight 保存来源文档与 raw `world/experience` facts，并产生 observation 等派生内容。
+它不是 `.curator-index.json` 或 SQLite 侧车的替代实现，也不是 Markdown 的镜像。
+历史记忆与派生总结仍需对照当前事实和原始证据，不能自行成为正式规则或 owner 验收。
+
+| 责任 | 文件库 | Hindsight bank |
+|---|---|---|
+| 定位 | 显式路径或项目文件定位规则 | 项目记录/当前任务明确确认的 `project_id → bank_id`，禁止猜 bank 或使用 `default` |
+| 普通任务补上下文 | 小库直读或 route top-N | 按具体缺口主动做有界 `recall`；不要求每轮查询 |
+| 专门审计 | inventory/index 筛候选后读正文 | 按范围分页 `list_memories` / `list_documents`，再读候选及来源；recall top 命中不代表全库 |
+| 更新与退役 | note 与 `MEMORY.md` 成对更新 | 已授权范围内 retain/纠正 raw/可逆 invalidate；observation 由来源事实重算，不能直接修改 |
+| 完成证据 | strict + governance + `mark-curated` | 返回 operation 时跟踪原生状态，再核对 document/memory；同步动作直接核对响应与读回 |
+| 永久删除 | 读正文、列清单确认后成对删除文件与注册项 | 读原记录、列明实际删除粒度与关联影响并确认；不从文件删除自动触发服务删除 |
+
+入口和步骤见 [SKILL.md](../SKILL.md) 与按需加载的
+[Hindsight 工作流](../references/hindsight-workflow.md)。可用时复用已安装的 `hindsight-memory`
+skill 处理来源、document/operation 身份、弱连接及重试契约；该 skill 缺失时按本工作流
+和当前 MCP schema 执行，不新增接入层。缺少绑定或服务不可用时，继续原输入充分的任务步骤并报告具体缺口。
+
+入口由当前工具发现决定，工具前缀随 Harness 识别：
+
+1. 本地 MCP **Hindsight 项目记忆** 存在时优先本地。
+2. 本地不存在、云端 MCP **Hindsight Project Memory Cloud** 存在时使用云端。
+3. 两者都不存在时，本任务 Hindsight 路径为 **disabled**，回到原文件定位及 route/curate 流程处理已有文件库；无文件库时继续输入充分的原任务，不自动创建文件库或 bank。
+
+disabled 仅表示本任务不调用服务，不卸载插件或修改远端配置。工具存在/缺失与
+调用失败、结果未知分开判断；未确认写入不得改投另一入口重复提交，保留原 ID 和状态。
+本地表示连接入口，不证明抽取、embedding、重排、consolidation 或生成使用的模型
+全部离线，也不新增数据外发授权。
+
+服务列举与文件计数有不同含义：一个来源文档可以产生多个 raw facts 和 observation，
+未设置可选 `document_id` 也不自动构成孤儿。审计需记录筛选条件与分页覆盖；
+`list_documents(q)` 返回 `total_is_estimate=true` 时仍存在未覆盖结果。
+列表范围不完整为 partial，服务不可用为 unavailable，均不能报告全库健康。
+文件三方门禁、detector 和 `.curator-state` 不承担 bank 的验收或健康证明。
+
+Hindsight 的 `accepted` 是异步接收，不是 extraction/indexing completed。
+保留 source/document/memory/operation ID、提交 hash、最近原生状态和读回证据；
+operation completed 后仍要核对内容。原提交 metadata 中的 `content_sha256` 绑定
+来源原文，raw fact 经纠正后不能被当成编辑后正文的 hash。
+
+软失效与恢复仅作用于 raw `world/experience`。用 `get_memory.state` 和相关内容字段
+确认结果，不能依靠 recall 未命中；`state=valid` 也不证明实体和关联全部恢复。
+恢复后原实体仍可能为空，验收须对照保存的前态，
+报告缺失字段，必要的显式纠正依据原证据并在授权范围内进行。派生 observation 的
+重算结果单独核对，不能从 raw 完成推断全部派生状态已验证。
+
+经验证的经验可帮助后续任务取证、增加有针对性的测试或改进 skill；这些改动仍受各自
+任务授权约束，不由记忆或 reflect 自动改写规则。新 Hindsight 验证与既有 R1/R2
+文件路径历史验收分开记录；操作链路成功不证明任务质量、效率或 token 收益，
+评估见 [Hindsight 评估协议](../references/hindsight-evaluation.md)。
+
+## 文件代码入口
 
 | 入口 | 作用 |
 |---|---|

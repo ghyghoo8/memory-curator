@@ -1,0 +1,118 @@
+{
+  "hindsight_manual_record_version": 1,
+  "record_kind": "functional",
+  "status": "NOT_RUN",
+  "run_id": null,
+  "task_ref": null,
+  "reporter": null,
+  "observed_at": null,
+  "project_id": null,
+  "bank_id": null,
+  "binding_source_ref": null,
+  "authorization_ref": null,
+  "tool_contract_ref": null,
+  "routing": {
+    "verification_kind": null,
+    "local_tools_discovered": null,
+    "cloud_tools_discovered": null,
+    "expected_route": null,
+    "selected_route": null,
+    "evidence_ref": null
+  },
+  "models": [
+    {
+      "role": "executor",
+      "model_type": null,
+      "model_name": null,
+      "model_strength": null,
+      "evidence_ref": null
+    }
+  ],
+  "sources": [],
+  "recall": {
+    "query": null,
+    "request_ref": null,
+    "result": null,
+    "document_ids": [],
+    "memory_ids": []
+  },
+  "application": {
+    "result": null,
+    "decision_before": null,
+    "decision_after": null,
+    "decision_changed": null,
+    "positive_recall_applied": null,
+    "evidence_ref": null
+  },
+  "retain": {
+    "document_id": null,
+    "operation_id": null,
+    "content_sha256": null,
+    "request_ref": null,
+    "native_ack_status": null,
+    "native_terminal_status": null,
+    "observation_deadline": null,
+    "completion_confirmed_at": null,
+    "submit_to_completion_ms": null,
+    "memory_ids": []
+  },
+  "validation_record": {
+    "marker": null,
+    "document_id": null,
+    "operation_id": null,
+    "memory_ids": [],
+    "path": null,
+    "before_ref": null,
+    "change_reason": null,
+    "expected_after_ref": null,
+    "actual_after_ref": null,
+    "restoration_checks": [],
+    "expected_final_state": null,
+    "native_final_state": null,
+    "cleanup_status": "NOT_RUN"
+  },
+  "calls": [],
+  "measurements": {
+    "token_source": "unavailable",
+    "token_scope": null,
+    "tokenizer_name_and_version": null,
+    "input_tokens": null,
+    "output_tokens": null,
+    "total_tokens": null,
+    "token_evidence_ref": null,
+    "service_usage": []
+  },
+  "evidence": {
+    "binding": [],
+    "initial_recall": [],
+    "application": [],
+    "retain": [],
+    "operation_checks": [],
+    "document_and_memory_readback": [],
+    "targeted_recall": [],
+    "validation_record_creation": [],
+    "correction_or_retirement": [],
+    "restoration": [],
+    "restoration_entities_and_relations": [],
+    "final_cleanup": []
+  },
+  "verdicts": {
+    "entry_routing": "NOT_RUN",
+    "binding": "NOT_RUN",
+    "recall_apply_loop": "NOT_RUN",
+    "retain_async_completion": "NOT_RUN",
+    "content_and_source_readback": "NOT_RUN",
+    "correction_or_reversible_retirement": "NOT_RUN",
+    "restoration_native_state": "NOT_RUN",
+    "restoration_recall": "NOT_RUN",
+    "restoration_entities": "NOT_RUN",
+    "restoration_relations": "NOT_RUN",
+    "full_restoration": "NOT_RUN",
+    "validation_record_final_state": "NOT_RUN",
+    "task_benefit": "NOT_RUN"
+  },
+  "reviewer": null,
+  "review_evidence_ref": null,
+  "unverified_items": [],
+  "note": "Unexecuted template. Native status, IDs and envelopes must come from actual calls. Functional verification does not establish task benefit."
+}

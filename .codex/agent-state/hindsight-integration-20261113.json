@@ -1,0 +1,225 @@
+{
+  "schema_version": 1,
+  "project_id": "memory-curator",
+  "bank_id": "memory-curator",
+  "task_ref": "01a1d26a-dba3-7a00-a4aa-e74ba720cc7a",
+  "date": "2026-11-13",
+  "timezone": "Asia/Shanghai",
+  "baseline_commit": "c22009cfc023065480ecda4a6a7ac4c8de94c9d3",
+  "implementation_status": "reviewed_complete",
+  "functional_status": "PARTIAL",
+  "task_threads": [
+    {
+      "task": "H1",
+      "thread_id": "01a1d277-403e-70d1-a085-4cd095fde7f8",
+      "title": "Hindsight 策展流程与 Skill 适配"
+    },
+    {
+      "task": "H2",
+      "thread_id": "01a1d277-6234-71e0-9984-2d365361cc7d",
+      "title": "Hindsight 实际任务验证与收益记录"
+    },
+    {
+      "task": "H3",
+      "thread_id": "01a1d277-7eb6-72b2-a889-71032add1954",
+      "title": "Hindsight 插件说明与项目使用约定"
+    }
+  ],
+  "probe_spec": {
+    "request": {
+      "bank_id": "memory-curator",
+      "content": "Synthetic lifecycle fixture MC-HINDSIGHT-20261113-PROBE has marker READY. This is test data for reversible retirement, not project policy or business experience.",
+      "document_id": "memory-curator-hindsight-lifecycle-probe-20261113",
+      "operation_id": "22258ab0-de09-46a0-8f8f-5cf708e463ee",
+      "context": "明确标识的合成生命周期验证记录；由本轮实施授权覆盖，仅用于失效、恢复及再次退役验证，最终应退出活动召回。",
+      "metadata": {
+        "project_id": "memory-curator",
+        "task_ref": "01a1d26a-dba3-7a00-a4aa-e74ba720cc7a",
+        "reporter": "integration-review",
+        "observed_at": "2026-11-13T09:20:00.903800+08:00",
+        "source_ref": ".codex/agent-state/hindsight-integration-20261113.json#probe_spec",
+        "content_sha256": "c105713807bbee4f1310efe9f61b22c7e9a9737e48e9a1cf81ed97a4a3fbaa1b"
+      },
+      "tags": [
+        "project:memory-curator",
+        "validation:hindsight-lifecycle-20261113"
+      ],
+      "timestamp": "2026-11-13T09:20:00.903800+08:00"
+    },
+    "expected_sequence": [
+      "valid",
+      "invalidated",
+      "valid",
+      "invalidated"
+    ],
+    "final_state": "invalidated",
+    "purpose": "Isolated synthetic lifecycle probe; never task benefit evidence."
+  },
+  "checks": {
+    "initial_empty_recall": "PASS",
+    "retain_async_completion": "PASS",
+    "document_original_and_metadata_sha": "PASS",
+    "source_linked_recall": "PASS",
+    "raw_correction_and_readback": "PASS",
+    "first_correction_recall": "PASS",
+    "retirement_native_state": "PASS",
+    "restoration_native_state": "PASS",
+    "restoration_recall": "PASS",
+    "restoration_entities": "FAIL",
+    "restoration_relations": "UNKNOWN",
+    "full_restoration": "FAIL",
+    "final_probe_retirement_and_exclusion": "PASS",
+    "controlled_task_benefit": "NOT_RUN",
+    "experience_write_and_readback": "PASS",
+    "approved_routing_write_and_readback": "PASS",
+    "routing_local_live": "PASS",
+    "routing_cloud_only": "SCENARIO_REVIEW_ONLY",
+    "routing_no_endpoint": "SCENARIO_REVIEW_ONLY",
+    "independent_skill_absent": "SCENARIO_REVIEW_ONLY"
+  },
+  "documents": [
+    {
+      "id": "memory-curator-hindsight-adoption-20261113",
+      "operation_id": "2621dba4-f0cd-4f07-97b1-2aae2393c1e2",
+      "content_sha256": "c6f86e2344edff6fc4d8e11ef568bbc42f5e71d2052328bebc3b6f449c561e51",
+      "state": "completed",
+      "purpose": "User-approved adoption boundary; raw facts preserved and corrected to source wording."
+    },
+    {
+      "id": "memory-curator-hindsight-lifecycle-probe-20261113",
+      "operation_id": "22258ab0-de09-46a0-8f8f-5cf708e463ee",
+      "content_sha256": "c105713807bbee4f1310efe9f61b22c7e9a9737e48e9a1cf81ed97a4a3fbaa1b",
+      "state": "completed",
+      "memory_id": "3992eac7-c3e0-40a7-88dc-73a17c850e94",
+      "memory_final_state": "invalidated",
+      "purpose": "Synthetic lifecycle fixture; excluded from active recall at closeout."
+    },
+    {
+      "id": "memory-curator-hindsight-runtime-findings-20261113",
+      "operation_id": "49d286ad-ddff-458e-8757-f233796e26f3",
+      "content_sha256": "4583389309258c52f6caa9d972d97e8d7167f6e619f5e67b2c5a9e99c21282c7",
+      "state": "completed",
+      "purpose": "experience"
+    },
+    {
+      "id": "memory-curator-hindsight-routing-20261113",
+      "operation_id": "0ac089ec-5d0c-43c0-a40b-7397ade751d8",
+      "content_sha256": "02a04331dbcf328fc0c9d788482274613a93e582252054f9c4487a9cc834ae17",
+      "state": "completed",
+      "purpose": "routing"
+    }
+  ],
+  "corrections": [
+    {
+      "memory_id": "ab002259-1d5c-4704-8cf4-bcb5716e3854",
+      "reason": "Remove extraction-added rationale not present in submitted source.",
+      "readback": "PASS",
+      "recall": "PASS"
+    },
+    {
+      "memory_id": "e78571ca-1e35-46c0-95ea-9e24b4649ec6",
+      "reason": "Remove second extraction-added rationale identified by independent reviewer.",
+      "readback": "PASS",
+      "recall": "NOT_RUN"
+    }
+  ],
+  "known_limits": [
+    {
+      "issue": "Restore returns valid and makes the raw fact recallable, but original entity associations were not restored in this deployment.",
+      "memory_id": "3992eac7-c3e0-40a7-88dc-73a17c850e94",
+      "before_entities": [
+        "MC-HINDSIGHT-20261113-PROBE"
+      ],
+      "after_restore_entities": [],
+      "state": "valid",
+      "later_consolidated_at": "2026-11-13T01:21:20.459099+00:00",
+      "disposition": "Expose separate state/content/entity/relationship checks in workflow; service repair outside this repository scope. Fixture finally invalidated.",
+      "evidence_keys": [
+        "probe_before",
+        "probe_restored",
+        "probe_restored_recheck",
+        "probe_restored_recall",
+        "probe_end_state",
+        "probe_end_recall"
+      ]
+    }
+  ],
+  "verification": {
+    "full_suite": {
+      "command": "rtk proxy bash tests/run.sh",
+      "unit_tests": 186,
+      "shell_regression": "PASS",
+      "exit_code": 0,
+      "log": ".tmp/verification-hindsight-20261113.log",
+      "reported_unit_seconds": 13.504,
+      "total_seconds": 16.82,
+      "log_sha256": "bcf1789fb210d857dca229ce1e60bfcbfc98a45d9bdbe3e32217671ee5682c55"
+    },
+    "json_and_frontmatter": "PASS",
+    "local_markdown_links": 34,
+    "diff_check": "PASS"
+  },
+  "real_usage_observation": {
+    "mode": "observation",
+    "task_type": "handoff",
+    "task_ref": "01a1d277-7eb6-72b2-a889-71032add1954",
+    "result": "adopted",
+    "decision_changed": false,
+    "harmful_memory_use": false,
+    "review_source": "Reviewer report, with native calls retained in that chat; independent controlled benefit not measured.",
+    "query": "memory-curator 已批准的文件记忆与 Hindsight 支持边界：两种后端各自的策展完成和验收标准是什么？本地 MCP、来源回读、异步状态和收益结论有哪些限制？请召回原始批准来源。",
+    "document_id": "memory-curator-hindsight-adoption-20261113",
+    "memory_ids": [
+      "9c2ebebd-95f7-492c-8fa3-49e7ac91cbbe",
+      "db85ff16-100f-402b-be79-79d69d367fb2",
+      "ab002259-1d5c-4704-8cf4-bcb5716e3854"
+    ],
+    "finding": "Reject unsupported extraction rationale; narrow local-MCP preference to project configuration. The project-only preference finding was correct under the then-current scope; later explicit user instruction supersedes it with generic local/cloud/disabled routing.",
+    "model_type": null,
+    "model_name": null,
+    "model_strength": null,
+    "token_usage": null,
+    "elapsed_ms": null
+  },
+  "raw_evidence": {
+    "path": ".tmp/hindsight-integration-20261113/native-evidence.json",
+    "sha256": "2ee26d5131f0f7856b234d52210e4342c9b7299de064bf3f38ff260f2ff03f8b",
+    "note": "Complete native envelopes; ignored local evidence, carry with this report when handing off."
+  },
+  "historical_r2": "Unchanged: original placeholder 0/180, independent pilot 45/180, formal task benefit not evaluated.",
+  "routing": {
+    "order": [
+      "Hindsight 项目记忆",
+      "Hindsight Project Memory Cloud",
+      "disabled/files"
+    ],
+    "discovery": {
+      "local_hindsight_discovered": true,
+      "cloud_hindsight_discovered": true,
+      "selected": "local",
+      "validation": "live tool inventory + previously executed local MCP operations"
+    },
+    "disabled_scope": "Current task path only; no client or service configuration changes.",
+    "user_source": "Main chat rule additions, recorded in plan section 10.1.1."
+  },
+  "review": {
+    "owner": "main chat",
+    "status": "complete",
+    "followup_implemented": "Explicit three-way routing and optional separate skill dependency.",
+    "service_limitation": "Entity restoration FAIL remains exposed; service repair is outside this repository implementation.",
+    "release_status": "working_tree_only"
+  },
+  "source_sha256": {
+    "README.md": "bff57d1e903c8256b6d56cdff3fec690c9837f413a7a77794050db15430eeefe",
+    "AGENTS.md": "18b81d66ddf9f1c305e1044d19b38baccdd85bf4b99f6048d1a07d918157fcf4",
+    "plugins/memory-curator/.codex-plugin/plugin.json": "b79c0bff33ad775a3ad787292c14d9be9754f787f42dd5650f270fd3f80ab725",
+    "plugins/memory-curator/skills/memory-curator/SKILL.md": "ca853e54f89c1852c8b7a685dd200fa48c1f6db22ae8d2441260f8f7288d858f",
+    "plugins/memory-curator/skills/memory-curator/docs/memory-cache-architecture.md": "80ceb5544186f6b8d0558f3cb531e1aea44fa4a6a2126615357e346257acb3c8",
+    "plugins/memory-curator/skills/memory-curator/references/hindsight-workflow.md": "e5c98d9b77be8a2b1db91416b812d1f60ad6c9b0fa1e1d14354653c61cc93da8",
+    "plugins/memory-curator/skills/memory-curator/references/hindsight-evaluation.md": "88e5f79aa7d29ab6e38c1ea4c8e843039467d55bca2ee05d5457b9eb5721fe74",
+    "evals/hindsight/README.md": "2273a370a4a63f0988bfc941dc2159cdd8ff2a539707a4b17e31bf552ba399a6",
+    "evals/hindsight/functional-run.template.json": "dbd41d0ccf36cde48db4297ecddfe040298f042adf62161d4b93342d8578f29f",
+    "evals/hindsight/task-run.template.json": "3c1ba84a9793d03f260b16ec0b592ccb2336bf463689e2809376c180aa62a107",
+    ".codex/project.md": "caa550885b3f288bf35227ce1f541ea5e363de2fd797839b84a5f1469dbf0f85"
+  }
+}

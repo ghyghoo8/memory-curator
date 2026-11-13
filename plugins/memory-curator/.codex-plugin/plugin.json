@@ -1,7 +1,7 @@
 {
   "name": "memory-curator",
   "version": "0.1.0",
-  "description": "Curate, route, and validate file-based agent memory with explicit safety gates.",
+  "description": "Curate file-based and optional Hindsight agent memory with source review and backend-specific verification.",
   "author": {
     "name": "ghyghoo8",
     "url": "https://github.com/ghyghoo8"
@@ -13,13 +13,14 @@
     "memory",
     "curation",
     "agent-memory",
+    "hindsight",
     "codex"
   ],
   "skills": "./skills/",
   "interface": {
     "displayName": "Memory Curator",
-    "shortDescription": "Keep file-based agent memory accurate and lean",
-    "longDescription": "Route, inspect, curate, and validate file-based agent memory with explicit approval for destructive changes.",
+    "shortDescription": "Curate file & Hindsight memory",
+    "longDescription": "Curate files offline, or use local Hindsight MCP first, then Hindsight Project Memory Cloud when local is absent. If neither MCP is present, disable Hindsight for this task and use the file workflow. Reuse hindsight-memory when available; otherwise follow the bundled workflow and actual MCP schemas. Require explicit approval for destructive changes.",
     "developerName": "ghyghoo8",
     "category": "Productivity",
     "capabilities": [

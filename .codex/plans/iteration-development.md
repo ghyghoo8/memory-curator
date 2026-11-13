@@ -576,3 +576,61 @@ PYTHONDONTWRITEBYTECODE=1 python3 scripts/memory_outcomes.py \
 建议暂不为凑次数直接扩跑 180；先增加有代表性的真实任务和实际噪声，使实验能够检验策展相对原记忆的额外价值，再固定完整实验执行正式验收。当前可继续试用工程交付，R2 正式验收保持未完成。
 
 关键证据：[机器汇总](../../.tmp/pilot45-20260909-v1/reports/pilot-summary.json)、[原始记录](../../.tmp/pilot45-20260909-v1/workspace/runs.jsonl)、[运行审计](../../.tmp/pilot45-20260909-v1/reports/runtime-audit.json)、[成本汇总](../../.tmp/pilot45-20260909-v1/reports/cost-observations.json)、[最终证据 hash 清单](../../.tmp/pilot45-20260909-v1/verification.json)。本轮仅生成临时实验和本节文档；canonical Skill、聚合器及源案例 manifest 的 hash 均保持实验前身份，未维护真实记忆、安装、提交或发布。
+
+## 10. 2026-11-13 Hindsight 项目记忆适配
+
+### 10.1 授权、边界与交付范围
+
+公子在主会话 `01a1d26a-dba3-7a00-a4aa-e74ba720cc7a` 明确接受前文推荐方案，并指示“按你推荐的方案 推进执行。拆分成独立任务，并行新起会话推进，你负责复核，并汇报结果”。本节承接该授权，旧 R1/R2 证据和未完成的效果验收不变。
+
+ARCHITECTURE TRIAGE
+- Path: ARCHITECTURE_GATE
+- Evidence: 当前 Skill/缓存架构只定义文件记忆的三方一致性；新增 Hindsight 服务的事实、派生观察和异步完成语义。此边界扩展正是公子已接受的推荐方案，gate 的同范围接受条件已满足。
+- Boundary impact: 共用策展判断，分别执行文件与 Hindsight 操作；文件源、索引、脚本语义保持。服务读写经已有 MCP 与 hindsight-memory skill，不引入同步器、SDK、新常驻服务或默认后台调用。
+- Next action: 在下述文件所有权内并行实现，主会话复核与实际 MCP 验证。
+
+| 部件 | 责任和数据 | 副作用与完成标准 |
+|---|---|---|
+| memory-curator Skill/reference | 路由、审计、证据判断、动作选择 | 按当前任务授权执行，永久删除先出具体清单确认 |
+| 原文件脚本 | Markdown / MEMORY.md / JSON 与可重建搜索侧车 | 原 strict + governance gate，保持离线使用 |
+| hindsight-memory + 本地 MCP | 显式项目 bank 的来源事实、派生观察、记忆操作 | 原始 operation 状态与读回；accepted 不等于 completed；不盲目重发不确定写入 |
+| 本仓项目入口 | [project_id → bank_id](../project.md) 绑定与使用约定 | 绑定不替代写权或当前事实 |
+| 效果记录 | 新任务的来源、采用情况、正确完成/返工/错误引用及实测用量 | 功能验证和真实任务收益分开，缺失测量为空，不给旧 R2 补签 |
+
+方向为 Skill → 已有文件工具或现有 Hindsight MCP，无双向同步与竞争写者。Hindsight 纠正/可逆失效只处理 raw world/experience；派生 observation 追溯来源，不直接改写。真实历史变化保留时间与替代证据。回退可停止服务工作流并继续现有文件工作流；已写事实保留来源和状态，不自动删除。
+
+### 10.1.1 已批准的入口顺序补充
+
+公子随后明确要求：有本地「Hindsight 项目记忆」MCP 时优先本地；否则使用云端「Hindsight Project Memory Cloud」；两者都没有则关闭 Hindsight 路径，走原流程。此新指令将入口顺序固化为通用 Skill 行为，替代此前“通用文档只引用项目偏好”的范围判断。
+
+以当前会话工具发现选择入口；两者均无时仅禁用本任务的 Hindsight 调用并继续原文件流程，不卸载或修改服务配置、不自动创建记忆库。工具缺失与执行错误/不确定写入分别处理，不用入口切换盲目重发写入。本轮真实环境两种入口均可见，实际验证选择本地；仅云端与均缺失分支做情景检查，不能宣称另两种运行环境已经实测。
+
+### 10.2 并行任务与状态
+
+本表是本轮唯一任务状态入口；子会话最终回复是交付报告，主会话拉取并复核，不自动视为通过。共享 checkout 按文件划分写权，不提交/push/发布。
+
+| ID | 结果及文件所有权 | 会话/依赖 | 状态与证据 |
+|---|---|---|---|
+| H1 | Skill 路由；references/hindsight-workflow.md；docs/memory-cache-architecture.md | `01a1d277-403e-70d1-a085-4cd095fde7f8`；独立 | REVIEWED — 入口、服务流程及新路由已复核 |
+| H2 | references/hindsight-evaluation.md；evals/hindsight/ 手工案例及记录模板 | `01a1d277-6234-71e0-9984-2d365361cc7d`；独立 | REVIEWED — 协议、模板及恢复分项/选路情景已复核 |
+| H3 | README.md、AGENTS.md、plugin manifest 描述；保留版本与发布状态 | `01a1d277-7eb6-72b2-a889-71032add1954`；独立 | REVIEWED — 双语说明、项目约定与 manifest 已复核 |
+| H4 | 项目绑定、本节状态、真实 bank 闭环、集成复核与验证 | 主会话；最终集成依赖 H1–H3 | REVIEWED — 186 tests + shell 通过；服务完整恢复限制见下节 |
+
+交付准则：
+- H1：两种存储入口明确；分页审计与 bounded recall 区分；来源、raw/derived、错误、异步和删除规则可执行；内部链接有效。
+- H2：明确功能验证步骤、3–5 类真实任务记录和受控比较方法；模板无伪造实测状态，缺失用量为空；不新增框架或改变旧聚合器。
+- H3：中英文使用说明和 manifest 与实际能力一致；本仓绑定引用项目入口；旧 0/180 与新 45/180 分清。
+- H4：以明确标识的验证记录演示读取、写入、完成读回、纠正与可逆退役；保留 native evidence。完成现有 `bash tests/run.sh`、变更 JSON/链接检查、`git diff --check`，按 code-review-and-quality 复核。长期效果可随真实工作累积，不以未做长期实验阻塞本次功能交付。
+
+### 10.3 集成证据
+
+本轮 H1–H3 均完成交付并交回写权；主会话已复核集成结果。公子后补充的本地 → 云端 → 无端点走原文件流程已固化到通用 Skill、reference、README、AGENTS、manifest 与项目入口。独立 hindsight-memory skill 可用时复用，缺失不阻断已有 MCP。
+
+- **仓库验证**：`bash tests/run.sh` 的 186 项单元测试及 shell 回归通过；JSON、Skill frontmatter、文档链接与 `git diff --check` 通过。未新增运行依赖、MCP 客户端或同步服务。
+- **真实 MCP 验证**：在 `memory-curator` bank 完成空召回、有源 retain、原生 completed、原文/metadata SHA 读回和定向 recall；纠正两条 raw fact 中源文未写明的附加理由。批准方案、运行经验、后补充入口规则共三个有源文档已 completed 并读回。
+- **生命周期结果**：隔离合成记录的失效、状态恢复与恢复后召回通过，最终再次退役且严格 tag recall 为空；完整恢复未通过：原实体列表未恢复。关系恢复未验证。工作流和验收协议已要求分项对照前态，不以 valid 状态代替完整恢复；本轮未改 Hindsight 服务实现。
+- **实际使用观察**：H3 独立审查实际召回并核验来源，排除了抽取附加理由；这是一次真实 review 使用记录，不是受控效果对照，未证明 token、效率或返工收益。
+- **入口覆盖**：本机两种 MCP 均可发现，实际使用本地；仅云端、两者均缺失及独立 skill 缺失分支完成文档情景复核，不冒称另两种网络环境已实测。
+- **交付状态**：源文件在当前工作区，未 commit、push 或发布。后续真实任务可沿既定四类记录自然累积；旧 R2 实验与未完成的收益验收保持原样。
+
+紧凑结果及前态差异见 [集成报告](../agent-state/hindsight-integration-20261113.json)。完整原生回执与测试日志位于 `.tmp/hindsight-integration-20261113/native-evidence.json` 和 `.tmp/verification-hindsight-20261113.log`；它们是 Git 忽略的本机证据，交接时须随报告携带。原生回执 SHA-256：`2ee26d5131f0f7856b234d52210e4342c9b7299de064bf3f38ff260f2ff03f8b`。

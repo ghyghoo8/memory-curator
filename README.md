@@ -1,7 +1,7 @@
 # memory-curator
 
-> 文件式 AI 记忆库的策展与清理 Codex plugin —— 让项目记忆保持精简、无矛盾、无死信息。
-> A Codex plugin with a bundled skill for curating and pruning file-based agent memory.
+> 文件记忆与 Hindsight 服务记忆的策展 Codex plugin —— 按来源审查、按后端执行与验收。
+> A Codex plugin for curating file-based agent memory and, optionally, Hindsight memory through an existing project MCP connection.
 
 ## 为什么需要它
 
@@ -11,18 +11,21 @@
 
 `memory-curator` 把记忆维护做成两条路径:**轻量 route → 只读相关记忆** 和 **重型 curate → 盘点/判删/执行/校验**。默认先节省上下文,把 token 留给当前任务。
 
+文件记忆与 Hindsight 共享过期、重复、冲突、证据不足等策展判断；执行和验收各走自己的后端。文件路径保留离线索引与脚本，Hindsight 路径使用已有项目记忆 MCP，并优先复用可用的 `hindsight-memory` skill。
+
 ## 能力概览
 
-- **六维体检**:① 过期 ② 重复 ③ 矛盾(高危·误判之源) ④ 孤儿/死链 ⑤ 碎片(可合并) ⑥ 易误判(标的/版本/待办重点核)
+- **文件六维体检**:① 过期 ② 重复 ③ 矛盾(高危·误判之源) ④ 孤儿/死链 ⑤ 碎片(可合并) ⑥ 易误判(标的/版本/待办重点核)
 - **四档判削**:删 / 更新 / 合并 / 留 —— 每条带判据,不一刀切
-- **安全第一**:删除不可逆 → 删前读正文确认无独特经验、先出清单给用户过目、删文件与删索引成对操作
-- **严格一致性门禁**:缺失/损坏/过期机器索引都会失败；终态必须 note / `MEMORY.md` / JSON 三方一致、无死链、无孤儿
-- **中英低 token 路由**:中文、英文和混合查询都可从机器索引选择 top 1-3 条相关记忆,不全量读正文
-- **治理元数据门禁**:检查 L0-L3、domain、时效、复核日期、证据和 supersession 生命周期
-- **可选混合检索侧车**:SQLite FTS5 + JSON 向量 + Python cosine + RRF；数据库可删除重建，Markdown 始终是真相源；sqlite-vec 仅在隔离 TDAI POC 中验证
-- **Codex-first**:默认定位项目 `.codex/memory/`,同时兼容旧 Claude Code `~/.claude/projects/.../memory/` 与任意 markdown 记忆库
+- **安全第一**:删改前检查来源与正文、保留独特经验，破坏性动作先出清单并确认；文件删除与索引更新成对操作
+- **文件一致性门禁**:缺失/损坏/过期机器索引都会失败；终态必须 note / `MEMORY.md` / JSON 三方一致、无死链、无孤儿
+- **中英低 token 文件路由**:中文、英文和混合查询都可从机器索引选择 top 1-3 条相关记忆,不全量读正文
+- **文件治理元数据门禁**:检查 L0-L3、domain、时效、复核日期、证据和 supersession 生命周期
+- **可选文件检索侧车**:SQLite FTS5 + JSON 向量 + Python cosine + RRF；数据库可删除重建，Markdown 始终是真相源；sqlite-vec 仅在隔离 TDAI POC 中验证
+- **Codex-first 文件定位**:默认定位项目 `.codex/memory/`,同时兼容旧 Claude Code `~/.claude/projects/.../memory/` 与任意 markdown 记忆库
+- **可选 Hindsight 策展**:在已确认的项目 bank 内主动召回、审计、回写有来源的经验，按服务原生状态与内容回读验证
 
-## 规模边界
+## 文件记忆的规模边界
 
 - 小库:`<=10` 条 note 且 `<=20KB` markdown,可按任务直接读取明确相关的少量 note。
 - 中库:`11-30` 条 note 或 `20-50KB` markdown,必须先 route/index,只读 top 1-3。
@@ -76,9 +79,9 @@ cp -r memory-curator/plugins/memory-curator/skills/memory-curator \
 
 安装后,当你对 Codex 说**"清理一下记忆""盘点记忆库""记忆是不是过期了""tidy up memory"**等,skill 会触发。也可显式提到 `memory-curator`。
 
-普通任务按规模处理:小库可直读明确相关的少量 note,中/大库先 route top 1-3。清理任务才走 curate:安全定位记忆库 → 紧凑 inventory → 六维体检 → 给出留/删/改/并清单(破坏性动作先确认)→ 执行 → 严格校验 note、`MEMORY.md`、JSON 索引一致。
+先确认目标是文件记忆、Hindsight，还是两者。文件记忆的普通任务按规模处理:小库可直读明确相关的少量 note,中/大库先 route top 1-3。清理任务才走 curate:安全定位记忆库 → 紧凑 inventory → 六维体检 → 给出留/删/改/并清单(破坏性动作先确认)→ 执行 → 严格校验 note、`MEMORY.md`、JSON 索引一致。
 
-默认记忆库位置:
+默认文件记忆库位置:
 
 ```text
 <project>/.codex/memory/
@@ -88,7 +91,28 @@ cp -r memory-curator/plugins/memory-curator/skills/memory-curator \
 
 也可以用 `CURATOR_MEMORY_DIR=/path/to/memory` 显式指定任意记忆目录。
 
-## 索引与路由
+### Hindsight 服务记忆 / Hindsight service memory
+
+使用这条路径需要**可用的 Hindsight MCP，以及明确确认的 `project_id → bank_id` 绑定**。独立 `hindsight-memory` skill 可用时优先复用；缺失时按本插件的 Hindsight 工作流和实际 MCP schema 继续，不以安装该 skill 为前提。项目绑定由各项目的 `.codex/project.md` 等记忆入口持有；通用 skill 不硬编码本仓 bank，也不从目录名猜测或回退到 `default`。本仓绑定见 [.codex/project.md](.codex/project.md)。
+
+默认按当前任务提供的 MCP 工具选择入口：优先本地 **「Hindsight 项目记忆」**；没有本地入口时使用云端 **「Hindsight Project Memory Cloud」**；两个都没有时，**关闭本次任务的 Hindsight 路径，走原文件记忆流程**。这是通用默认路由，项目 bank 仍须明确确认。入口调用失败或写入状态不明时，按原工作流核验，不把它当作入口不存在而跨连接重发。
+
+关闭仅影响本次任务的路径选择，不卸载插件、不停止服务、不更改客户端配置，不自动安装 skill 或服务，也不创建 bank。插件不增加同步器或 SDK，不自动导入文件记忆与会话历史；文件索引、路由和策展仍可独立离线使用。
+
+| 用途 | 示例请求与处理方式 |
+|---|---|
+| 主动召回 / Recall | “继续这个任务前，召回项目里与当前约束有关的经验。” 围绕具体上下文缺口召回少量相关内容，核对来源与时点；不要求每轮查询全库。 |
+| 审计 / Audit | “审计这个项目 bank 中过期、重复、冲突或证据不足的记忆，先给我清单。” 报告本次覆盖范围与证据，未经覆盖的内容不算已审计。 |
+| 经验回写 / Retain | “把本次已验证的原因与解决方法回写项目记忆。” 按当前授权记录结论、来源、原任务、观察时间及未确认项，不把整段会话当经验。 |
+| 改进 / Improve | “依据这次核验结果修正旧结论，并验证后续召回。” 先读相关记录和来源，再执行已授权的更正、合并或失效处理；保留修订关系，回读确认结果。 |
+
+Hindsight 使用服务原生操作状态与内容回读验收，`accepted` / `SUBMITTED` 只表示请求被接收。文件脚本的三方索引门禁、规模阈值及 `.curator-state` 不适用于 bank；Hindsight 成功回写也不代表文件库已同步。具体流程见 [Hindsight 工作流](plugins/memory-curator/skills/memory-curator/references/hindsight-workflow.md)，验证协议见 [Hindsight 评测](plugins/memory-curator/skills/memory-curator/references/hindsight-evaluation.md)。连通性、写入与召回成功均不能单独证明任务质量、token 或耗时收益。
+
+The optional Hindsight path requires an available MCP and a confirmed project-to-bank binding. Prefer the separate `hindsight-memory` skill when available; when absent, continue with this plugin's Hindsight workflow and the actual MCP schemas. Installing that skill is not a prerequisite. The default route prefers the local **Hindsight 项目记忆** MCP; when it is absent, use **Hindsight Project Memory Cloud**. If neither MCP is present, disable the Hindsight path for this task and use the original file-memory workflow. This does not uninstall plugins, stop services, change client configuration, install skills or services, or create banks. A failed call or uncertain write is not an absent MCP and must not trigger resubmission through another connection.
+
+Recall relevant evidence, audit a bounded scope, retain sourced experience, and verify authorized corrections through native operation status and content readback. File memory remains independently usable offline. The two backends share curation criteria, but have separate execution and verification; no synchronization or measured Hindsight benefit is implied.
+
+## 文件索引与路由
 
 完整的缓存分层、读取/写入时序、失效语义和设计边界见
 [Memory 缓存与检索架构](docs/memory-cache-architecture.md)。
@@ -219,7 +243,9 @@ name/description/domain/type/scope/entities，`full` 才追加正文，单条输
 
 `curator-keyword` 保留原元数据加权路由含义，`curator-fts` 才是 FTS5。报告标明算法与计时范围；远程 evidence URL 仅计为未验证声明。性能验收使用独立的 `tests/benchmark_memory_performance.py`，不把预验证的召回内核时间冒充 CLI 总耗时。
 
-任务收益使用 [20 个固定合成任务与离线协议](evals/files/task-benefit/README.md)：每个任务的 none/original/curated 各运行 3 次。先以空 runs 生成完整实验的 `experiment_digest`，每条真实 run 必须记录该摘要；聚合时重算，缺失或输入漂移为 invalid，报告 schema 为 2。旧 run 不能按当前输入补签，须保留旧实验并以新身份、新摘要重新执行。聚合器不执行模型；正式记录仍为 0/180、incomplete/not_evaluated，临时冒烟不代表策展增益。报告必须写在只读输入 workspace 外；缺少 token、耗时或修正记录时成本比较显示 unavailable。
+文件记忆的任务收益使用 [20 个固定合成任务与离线协议](evals/files/task-benefit/README.md)：每个任务的 none/original/curated 各运行 3 次。先以空 runs 生成完整实验的 `experiment_digest`，每条真实 run 必须记录该摘要；聚合时重算，缺失或输入漂移为 invalid，报告 schema 为 2。旧 run 不能按当前输入补签，须保留旧实验并以新身份、新摘要重新执行。聚合器不执行模型；报告必须写在只读输入 workspace 外；缺少 token、耗时或修正记录时成本比较显示 unavailable。
+
+原始 placeholder 模板保留 **0/180**。后续独立先导已完成并盲评 45 次，按完整协议计 **45/180、incomplete / not_evaluated**；正式任务收益验收仍未完成。先导尚未证明策展优于原记忆或带来实际成本下降，临时冒烟也不代表增益；证据和限制见 [迭代开发交付文档第 9.6 节](.codex/plans/iteration-development.md#96-2026-09-09-45-次先导实验)。这些文件记忆结果不构成 Hindsight 收益证据，Hindsight 验证单独记录。
 
 TencentDB Agent Memory 的固定版本隔离 POC 见 `poc/tencentdb-agent-memory/README.md`；它只作为检索侧车候选，不接管 Markdown 真相源。
 
@@ -227,7 +253,7 @@ TencentDB Agent Memory 的固定版本隔离 POC 见 `poc/tencentdb-agent-memory
 `poc/local_bge_m3/README.md` 的固定 revision、loopback-only BGE-M3 POC；
 模型与依赖只缓存到 `/private/tmp`，不修改项目虚拟环境。
 
-## 健康探测器
+## 文件记忆健康探测器
 
 `hooks/detect-memory-health.sh` 是一个确定性探测器,可在 Codex 项目里手动或由外部自动化调用:
 
@@ -269,6 +295,8 @@ memory-curator/
 │   └── skills/memory-curator/
 │       ├── SKILL.md                       # 主流程与 skill frontmatter
 │       ├── references/judgment-matrix.md  # 详细判据矩阵
+│       ├── references/hindsight-workflow.md   # Hindsight 策展与回读流程
+│       ├── references/hindsight-evaluation.md # Hindsight 独立验证协议
 │       ├── scripts/                       # 索引、路由、治理与检索工具
 │       ├── hooks/                         # 健康探测及旧 Claude 兼容适配器
 │       ├── docs/                          # 架构文档
@@ -286,7 +314,8 @@ memory-curator/
 - Codex 项目文件记忆:`<project>/.codex/memory/` + `MEMORY.md`
 - 旧 Claude Code 文件记忆:`~/.claude/projects/<proj>/memory/` + `MEMORY.md`
 - 任意 markdown 记忆库:一文件一事实 + 一个索引文件
-- 外部数据库不是记忆真相源；仅支持由 Markdown 重建的派生检索侧车
+- 文件后端的数据库仅为可由 Markdown 重建的派生检索侧车，Markdown 仍是真相源
+- Hindsight 服务记忆:已有项目 MCP 与已确认的 bank，遵循独立的来源、修订和服务验收流程
 
 ## License
 

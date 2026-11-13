@@ -1,0 +1,83 @@
+{
+  "hindsight_manual_record_version": 1,
+  "record_kind": "task",
+  "status": "NOT_RUN",
+  "run_id": null,
+  "mode": null,
+  "task_type": null,
+  "task_ref": null,
+  "reporter": null,
+  "observed_at": null,
+  "project_id": null,
+  "bank_id": null,
+  "binding_source_ref": null,
+  "models": [
+    {
+      "role": "executor",
+      "model_type": null,
+      "model_name": null,
+      "model_strength": null,
+      "evidence_ref": null
+    }
+  ],
+  "sources": [],
+  "context_id": null,
+  "memory_condition": null,
+  "controlled": {
+    "experiment_id": null,
+    "pair_id": null,
+    "frozen_inputs_ref": null,
+    "frozen_inputs_sha256": null,
+    "settings_ref": null,
+    "settings_sha256": null,
+    "planned_runs_and_order_ref": null,
+    "actual_order": null,
+    "isolation_evidence_ref": null,
+    "recall_envelope_ref": null,
+    "injected_text_ref": null,
+    "injected_text_sha256": null
+  },
+  "recall_and_application": {
+    "information_gap": null,
+    "query": null,
+    "result": null,
+    "document_ids": [],
+    "memory_ids": [],
+    "decision_before": null,
+    "decision_after": null,
+    "decision_changed": null,
+    "application_evidence_ref": null
+  },
+  "calls": [],
+  "output_ref": null,
+  "judgment": {
+    "criteria_ref": null,
+    "correct_completion": null,
+    "rework_count": null,
+    "rework_evidence_ref": null,
+    "harmful_memory_use": null,
+    "harmful_memory_ids": [],
+    "helpful_memory_use": null,
+    "review_method": null,
+    "reviewer": null,
+    "review_evidence_ref": null,
+    "blind_review_ref": null,
+    "attribution_review_ref": null
+  },
+  "measurements": {
+    "task_elapsed_ms": null,
+    "task_timing_scope": null,
+    "task_timing_evidence_ref": null,
+    "token_source": "unavailable",
+    "token_scope": null,
+    "tokenizer_name_and_version": null,
+    "input_tokens": null,
+    "output_tokens": null,
+    "total_tokens": null,
+    "token_evidence_ref": null,
+    "service_usage": []
+  },
+  "related_functional_run_ref": null,
+  "limitations": [],
+  "note": "Unexecuted template. A natural-task observation is not a controlled comparison. Unknown measurements and unreviewed outcomes remain null."
+}

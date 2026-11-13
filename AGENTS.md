@@ -5,10 +5,16 @@ This file provides guidance to Codex (Codex.ai/code) when working with code in t
 ## What this repo is
 
 `memory-curator` is a **Codex plugin** (not an application) that bundles one reusable
-skill for curating and pruning a file-based agent memory library — Codex project
-`.codex/memory/` + `MEMORY.md`, legacy Claude Code memory, or any "one fact per
-markdown note + one index file" store. There is no build step; the deliverable is the prose and scripts
-inside the markdown files.
+skill for curating file-based agent memory and optional Hindsight service memory.
+File stores include Codex project `.codex/memory/` + `MEMORY.md`, legacy Claude Code
+memory, or any "one fact per markdown note + one index file" store. Hindsight uses
+existing MCP tools. Reuse `hindsight-memory` when available; when absent, follow the
+bundled Hindsight workflow and actual MCP schemas without installing the separate skill.
+Prefer the local "Hindsight 项目记忆" MCP;
+use "Hindsight Project Memory Cloud" only when the local MCP is absent. If neither is present, disable the
+Hindsight path for this task and use the file workflow; this does not change client
+configuration, install/uninstall components, stop services, or create banks.
+There is no build step; the deliverable is the bundled prose and scripts.
 
 ## Layout & how the pieces relate
 
@@ -18,13 +24,17 @@ inside the markdown files.
 - `plugins/memory-curator/skills/memory-curator/SKILL.md` — the canonical skill entrypoint.
   Its YAML `frontmatter` (`name`, `description`) is what
   Codex keeps resident in context and uses to decide when to auto-trigger the skill.
-  The body is the always-loaded main workflow: a 6-step pipeline **locate → inventory →
+  The body routes to the selected backend; the file workflow is a 6-step pipeline **locate → inventory →
   6-dimension health check → keep/delete/update/merge matrix → safe execution → consistency
   gate**.
 - `plugins/memory-curator/skills/memory-curator/references/judgment-matrix.md` — the
   progressive-disclosure layer, loaded on demand. Holds
   the detailed delete/keep/update/merge criteria, contradiction-detection method, and the
   reusable bash scripts. `SKILL.md` deliberately stays lean and points here for fine judgment.
+- [Hindsight workflow](plugins/memory-curator/skills/memory-curator/references/hindsight-workflow.md)
+  owns service execution and readback; [Hindsight evaluation](plugins/memory-curator/skills/memory-curator/references/hindsight-evaluation.md)
+  owns its separate validation protocol. Repository binding lives in
+  [.codex/project.md](.codex/project.md); never hardcode this repository's bank in the reusable skill.
 - `plugins/memory-curator/skills/memory-curator/scripts/` — deterministic helpers for
   token-frugal memory infrastructure:
   `inventory-memory.sh` prints a compact live inventory, `build-index.sh` creates
@@ -72,6 +82,9 @@ like "清理记忆 / 盘点记忆库 / tidy up memory", or explicitly by mention
 `memory-curator`. Restart or open a new session to pick it up.
 
 ## Non-negotiable invariants the skill enforces (preserve these when editing)
+
+The following file-backend invariants remain mandatory. Hindsight uses the linked
+workflow's native completion and readback checks, not file indexes or `.curator-state`.
 
 - **Deletion is irreversible** → always read a note's body before proposing delete (confirm no
   unique experience the rules files/code don't already capture), and present a list to the user
