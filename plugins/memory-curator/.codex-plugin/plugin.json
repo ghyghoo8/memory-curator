@@ -1,6 +1,6 @@
 {
   "name": "memory-curator",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Curate file-based and optional Hindsight agent memory with source review and backend-specific verification.",
   "author": {
     "name": "ghyghoo8",

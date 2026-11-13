@@ -1,7 +1,7 @@
 # Memory Curator 迭代开发交付文档
 
 > 文档状态：R1 已验收（含一项经用户确认的性能例外，详见第 9.2 节）；R2 离线设施与 45 次先导已完成；正式 180 次效果验收未完成。R1 验收确认：2026-09-09。
-> 代码基线：`3b10b7a5913f0f009b91b73f08230fb977344e5d`；当前 plugin 版本 `0.1.0`。
+> R1/R2 代码基线：`3b10b7a5913f0f009b91b73f08230fb977344e5d`；该基线 plugin 版本 `0.1.0`；当前源码 plugin 版本 `0.2.0`（见第 10.4 节）。
 > 本文件是此次迭代的唯一需求、技术决策、任务与验收入口。复核结论直接更新本文件，不另建平行计划或 TODO。
 > 本次交付包含 R1 实现、回归、性能证据、R2 离线评测设施及第 9.6 节的 45 次先导证据；尚未证明策展优于原记忆的正确率或成本，安装发布未执行。
 > 2026-09-09 补充：R2 已加入完整实验摘要绑定，报告升级至 schema 2；自测与补强证据见第 9.5 节；新增独立先导 45/45 已评分（第 9.6 节），原始 placeholder 模板历史记录保持 0/180，正式验收仍未完成。
@@ -634,3 +634,9 @@ ARCHITECTURE TRIAGE
 - **交付状态**：源文件在当前工作区，未 commit、push 或发布。后续真实任务可沿既定四类记录自然累积；旧 R2 实验与未完成的收益验收保持原样。
 
 紧凑结果及前态差异见 [集成报告](../agent-state/hindsight-integration-20261113.json)。完整原生回执与测试日志位于 `.tmp/hindsight-integration-20261113/native-evidence.json` 和 `.tmp/verification-hindsight-20261113.log`；它们是 Git 忽略的本机证据，交接时须随报告携带。原生回执 SHA-256：`2ee26d5131f0f7856b234d52210e4342c9b7299de064bf3f38ff260f2ff03f8b`。
+
+### 10.4 2026-11-13 插件版本升级至 0.2.0
+
+公子明确要求升级插件版本。在已提交的 Hindsight 实现 `cdd12dd` 基础上，将 canonical manifest 从 `0.1.0` 升至 `0.2.0`，按新增且兼容的 Hindsight 能力采用 minor 升级；README 增加对应中英文更新记录。marketplace 仅引用插件路径，无重复版本字段。
+
+验证：`python3 -m unittest discover -s tests -p test_plugin_layout.py` 的 10 项测试通过；manifest/README 版本一致，JSON 与 `git diff --check` 通过。此次只更新版本和说明，未重跑已覆盖且无实现变更的完整功能回归。第 10.3 节及其 source hash 保留为升级前的实现验证快照，不改写旧证据。此次版本变更尚未提交、打 tag、发布或重装已安装的插件。

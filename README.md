@@ -3,6 +3,16 @@
 > 文件记忆与 Hindsight 服务记忆的策展 Codex plugin —— 按来源审查、按后端执行与验收。
 > A Codex plugin for curating file-based agent memory and, optionally, Hindsight memory through an existing project MCP connection.
 
+## 更新记录 / Changes
+
+### 0.2.0 — 2026-11-13
+
+- 新增 Hindsight 项目记忆的召回、审计、来源纠正和经验回写流程。
+- 固化入口顺序：本地 **Hindsight 项目记忆** → 云端 **Hindsight Project Memory Cloud** → 均无时关闭本次 Hindsight 路径，继续原文件记忆流程。
+- 新增服务操作验收与真实任务收益记录协议，分别检查状态、内容和实体恢复；原文件索引与策展接口保持兼容。
+
+Adds Hindsight curation with local → cloud → file-workflow fallback, plus separate service verification and task-benefit records. Existing file-memory interfaces remain compatible.
+
 ## 为什么需要它
 
 基于文件的 Agent 记忆(如 Codex 项目内的 `.codex/memory/` + `MEMORY.md` 索引)用久了会**臃肿**:已修的 bug 记录、被代码/文档覆盖的"新增 X 模块"快照、过期的版本状态、自相矛盾的结论、连索引都没进的"孤儿文件"。
